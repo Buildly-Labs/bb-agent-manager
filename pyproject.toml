@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bb-agent-manager"
+version = "0.1.0"
+description = "BabbleBeaver Agent Manager extension (private)"
+authors = [{name="Buildly Labs", email="dev@buildly.io"}]
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.111",
+  "pydantic>=2.7",
+  "httpx>=0.27",
+  "openai>=1.40",      # works with Ollama's OpenAI-compatible API
+  "google-generativeai>=0.7",  # Gemini
+  "python-dotenv>=1.0",
+]
+
+[project.entry-points."babblebeaver.modules"]
+bb_agent_manager = "bb_agent_manager.plugin:register"
