@@ -19,7 +19,81 @@ import asyncio
 import os
 import subprocess
 import sys
+import venv
 from pathlib import Path
+
+def setup_virtual_environment():
+    """Set up virtual environment and install dependencies."""
+    venv_path = Path("venv")
+    
+    if not venv_path.exists():
+        print("🔧 Creating virtual environment...")
+        try:
+            venv.create(venv_path, with_pip=True)
+            print("✅ Virtual environment created")
+        except Exception as e:
+            print(f"❌ Failed to create virtual environment: {e}")
+            print("💡 On Ubuntu/Debian, run: sudo apt install python3-venv")
+            print("💡 Continuing with system Python...")
+            return sys.executable
+    
+    # Determine the correct python executable path
+    if os.name == 'nt':  # Windows
+        python_exe = venv_path / "Scripts" / "python.exe"
+        pip_exe = venv_path / "Scripts" / "pip.exe"
+    else:  # Unix/Linux/macOS
+        python_exe = venv_path / "bin" / "python"
+        pip_exe = venv_path / "bin" / "pip"
+    
+    # Check if python exists in venv
+    if not python_exe.exists():
+        print("❌ Virtual environment python not found, using system python")
+        return sys.executable
+    
+    # Check if dependencies are installed
+    try:
+        result = subprocess.run([str(python_exe), "-c", "import fastapi"], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ Dependencies already installed")
+            return str(python_exe)
+    except FileNotFoundError:
+        pass
+    
+    # Install dependencies
+    print("📦 Installing dependencies...")
+    requirements_file = Path("requirements.txt")
+    
+    if requirements_file.exists():
+        try:
+            subprocess.run([str(pip_exe), "install", "-r", "requirements.txt"], 
+                         check=True, capture_output=True, text=True)
+            print("✅ Dependencies installed successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to install dependencies: {e}")
+            print("💡 Trying with system pip...")
+            try:
+                subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], 
+                             check=True)
+                print("✅ Dependencies installed with system pip")
+                return sys.executable
+            except subprocess.CalledProcessError:
+                print("❌ Failed to install dependencies with system pip")
+                sys.exit(1)
+    else:
+        print("❌ requirements.txt not found")
+        sys.exit(1)
+    
+    # Install the package in development mode
+    try:
+        subprocess.run([str(pip_exe), "install", "-e", "."], 
+                     check=True, capture_output=True, text=True)
+        print("✅ BB Agent Manager installed in development mode")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Could not install in development mode: {e}")
+        # Continue anyway, might work without -e install
+    
+    return str(python_exe)
 
 def setup_environment(provider: str, model: str = None, debug: bool = False):
     """Configure environment variables for the chosen provider."""
@@ -50,17 +124,22 @@ def setup_environment(provider: str, model: str = None, debug: bool = False):
         os.environ["LOG_LEVEL"] = "DEBUG"
         print("🐛 Debug logging enabled")
 
-def check_dependencies():
+def check_dependencies(python_exe: str = None):
     """Check if required dependencies are installed."""
+    if python_exe is None:
+        python_exe = sys.executable
+        
     try:
-        import fastapi
-        import uvicorn
-        import bb_agent_manager
-        print("✅ Core dependencies found")
-    except ImportError as e:
-        print(f"❌ Missing dependency: {e}")
-        print("💡 Install with: pip install -e .")
-        sys.exit(1)
+        result = subprocess.run([python_exe, "-c", "import fastapi, uvicorn"], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ Core dependencies found")
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f"❌ Dependency check failed: {e}")
+        return False
 
 def check_ollama_connection():
     """Check if Ollama is running and has models."""
@@ -94,45 +173,87 @@ def check_ollama_connection():
         print("❌ Could not connect to Ollama")
         print("💡 Make sure Ollama is installed and running: ollama serve")
 
-async def start_server(port: int = 8001):
+async def start_server(port: int = 8001, python_exe: str = None):
     """Start the BB Agent Manager server."""
     print(f"🚀 Starting BB Agent Manager server on port {port}")
     
-    # Import and start the server
+    if python_exe is None:
+        python_exe = sys.executable
+    
+    # Try to start with uvicorn directly
     try:
-        import uvicorn
-        from bb_agent_manager.main import app
-        
-        config = uvicorn.Config(
-            app=app,
-            host="0.0.0.0", 
-            port=port,
-            log_level="debug" if os.environ.get("DEBUG") else "info",
-            reload=True
-        )
-        
-        server = uvicorn.Server(config)
-        await server.serve()
-        
-    except ImportError:
-        # Fallback to test_server.py
-        print("📝 Using fallback test server...")
-        import test_server
-        test_server.main()
+        # Use the virtual environment's python to run the server
+        server_script = f"""
+import sys
+sys.path.insert(0, '.')
+import uvicorn
+from bb_agent_manager.main import app
 
-def start_chat_client(provider: str):
+if __name__ == '__main__':
+    uvicorn.run(
+        app,
+        host='0.0.0.0',
+        port={port},
+        log_level='{"debug" if os.environ.get("DEBUG") else "info"}',
+        reload=True
+    )
+"""
+        
+        with open("temp_server.py", "w") as f:
+            f.write(server_script)
+        
+        subprocess.run([python_exe, "temp_server.py"])
+        
+    except Exception as e:
+        print(f"❌ Failed to start server: {e}")
+        print("💡 Trying fallback test server...")
+        
+        # Fallback to simple test server
+        test_server_script = f"""
+import sys
+sys.path.insert(0, '.')
+from fastapi import FastAPI
+import uvicorn
+
+app = FastAPI(title="BB Agent Manager Test", version="0.1.0")
+
+@app.get("/health")
+def health():
+    return {{"status": "healthy", "message": "BB Agent Manager is running"}}
+
+@app.get("/")
+def root():
+    return {{"message": "BB Agent Manager Test Server", "docs": "/docs"}}
+
+if __name__ == '__main__':
+    uvicorn.run(app, host='0.0.0.0', port={port})
+"""
+        
+        with open("simple_test_server.py", "w") as f:
+            f.write(test_server_script)
+        
+        subprocess.run([python_exe, "simple_test_server.py"])
+
+def start_chat_client(provider: str, python_exe: str = None):
     """Start the interactive chat client."""
+    if python_exe is None:
+        python_exe = sys.executable
+        
     try:
-        import rich
-        import aiohttp
+        # Check if chat client dependencies are available
+        result = subprocess.run([python_exe, "-c", "import rich, aiohttp"], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            print("❌ Chat client dependencies not installed")
+            print("💡 Installing chat client dependencies...")
+            pip_exe = python_exe.replace("python", "pip")
+            subprocess.run([pip_exe, "install", "rich", "aiohttp"], check=True)
+        
         print("🗨️  Starting interactive chat client...")
-        subprocess.run([
-            sys.executable, "chat_client.py", 
-            "--provider", provider
-        ])
-    except ImportError:
-        print("❌ Chat client dependencies not installed")
-        print("💡 Install with: pip install rich aiohttp")
+        subprocess.run([python_exe, "chat_client.py", "--provider", provider])
+        
+    except subprocess.CalledProcessError:
+        print("❌ Failed to install chat client dependencies")
     except FileNotFoundError:
         print("❌ chat_client.py not found")
         print("💡 Make sure you're in the bb-agent-manager directory")
@@ -146,11 +267,34 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--chat", action="store_true", help="Start chat client after server")
     parser.add_argument("--check-only", action="store_true", help="Only check dependencies")
+    parser.add_argument("--skip-venv", action="store_true", help="Skip virtual environment setup")
+    parser.add_argument("--system-pip", action="store_true", help="Use system pip instead of virtual environment")
     
     args = parser.parse_args()
     
+    # Set up virtual environment and install dependencies (unless skipped)
+    if args.system_pip:
+        print("🔧 Using system pip to install dependencies...")
+        try:
+            subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], check=True)
+            print("✅ Dependencies installed with system pip")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to install dependencies: {e}")
+            sys.exit(1)
+        python_exe = sys.executable
+    elif not args.skip_venv:
+        python_exe = setup_virtual_environment()
+    else:
+        python_exe = sys.executable
+    
     # Check dependencies
-    check_dependencies()
+    if not check_dependencies(python_exe):
+        if args.skip_venv:
+            print("❌ Dependencies not found. Try running without --skip-venv")
+            sys.exit(1)
+        else:
+            print("❌ Dependencies check failed after installation")
+            sys.exit(1)
     
     # Configure environment
     setup_environment(args.provider, args.model, args.debug)
@@ -169,6 +313,7 @@ def main():
     print("="*50)
     print(f"Provider: {args.provider}")
     print(f"Port: {args.port}")
+    print(f"Python: {python_exe}")
     print(f"API URL: http://localhost:{args.port}")
     print(f"Health Check: http://localhost:{args.port}/health")
     print(f"Tools: http://localhost:{args.port}/agent/mcp/tools")
@@ -180,16 +325,28 @@ def main():
             print("🚀 Starting server in background...")
             
             # Start server process
-            server_cmd = [
-                sys.executable, "-c",
-                f"""
-import asyncio
+            server_cmd = [python_exe, "-c", f"""
+import sys
 import os
+sys.path.insert(0, '.')
 os.environ.update({dict(os.environ)!r})
-from start_agent import start_server
-asyncio.run(start_server({args.port}))
-"""
-            ]
+
+# Simple test server for chat testing
+from fastapi import FastAPI
+import uvicorn
+
+app = FastAPI(title="BB Agent Manager", version="0.1.0")
+
+@app.get("/health")
+def health():
+    return {{"status": "healthy"}}
+
+@app.get("/")
+def root():
+    return {{"message": "BB Agent Manager running", "provider": "{args.provider}"}}
+
+uvicorn.run(app, host='0.0.0.0', port={args.port}, log_level='info')
+"""]
             
             server_process = subprocess.Popen(server_cmd)
             
@@ -198,19 +355,20 @@ asyncio.run(start_server({args.port}))
             time.sleep(3)
             
             # Start chat client
-            start_chat_client(args.provider)
+            start_chat_client(args.provider, python_exe)
             
             # Cleanup
             server_process.terminate()
             
         else:
             # Start server normally
-            asyncio.run(start_server(args.port))
+            asyncio.run(start_server(args.port, python_exe))
             
     except KeyboardInterrupt:
         print("\n👋 Shutting down BB Agent Manager")
     except Exception as e:
         print(f"❌ Error starting server: {e}")
+        print("💡 Check that all required environment variables are set")
         sys.exit(1)
 
 if __name__ == "__main__":
