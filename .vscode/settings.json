@@ -1,0 +1,141 @@
+{
+  // BB Agent Manager VS Code Configuration
+  // Copy these settings to your VS Code settings.json or workspace settings
+  
+  "rest-client.environmentVariables": {
+    "$shared": {
+      "baseUrl": "http://localhost:8001",
+      "provider": "ollama",
+      "model": "deepseek-coder:6.7b"
+    },
+    "ollama": {
+      "provider": "ollama", 
+      "model": "deepseek-coder:6.7b",
+      "systemPrompt": "You are a Buildly development assistant. Use available tools when appropriate for code review, documentation, and development tasks."
+    },
+    "gemini": {
+      "provider": "gemini",
+      "model": "gemini-1.5-pro", 
+      "systemPrompt": "You are a Buildly development assistant specialized in Python, FastAPI, and documentation. Use the update_devdocs tool when documenting code changes."
+    }
+  },
+  
+  // Terminal settings for better Python development
+  "terminal.integrated.env.linux": {
+    "BB_AM_DEFAULT_PROVIDER": "ollama",
+    "OLLAMA_BASE_URL": "http://localhost:11434/v1",
+    "OLLAMA_MODEL": "deepseek-coder:6.7b"
+  },
+  
+  // Python extension settings
+  "python.defaultInterpreterPath": "./venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": true,
+  "python.formatting.provider": "black",
+  
+  // File associations for HTTP requests
+  "files.associations": {
+    "*.http": "http",
+    "*.rest": "http"
+  },
+  
+  // Recommended extensions for BB Agent development
+  "extensions.recommendations": [
+    "ms-python.python",
+    "ms-python.black-formatter", 
+    "ms-python.pylint",
+    "humao.rest-client",
+    "rangav.vscode-thunder-client",
+    "ms-vscode.vscode-json",
+    "redhat.vscode-yaml",
+    "ms-vscode-remote.remote-containers"
+  ],
+  
+  // Tasks configuration for common operations
+  "tasks.version": "2.0.0",
+  "tasks.tasks": [
+    {
+      "label": "Start BB Agent Server",
+      "type": "shell", 
+      "command": "python",
+      "args": ["test_server.py"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Ollama Server",
+      "type": "shell",
+      "command": "ollama",
+      "args": ["serve"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always", 
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Chat with BB Agent",
+      "type": "shell",
+      "command": "python", 
+      "args": ["chat_client.py", "--provider", "ollama"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run BB Agent Tests",
+      "type": "shell",
+      "command": "python",
+      "args": ["-m", "pytest", "tests/", "-v"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": "$python"
+    }
+  ],
+  
+  // Launch configurations for debugging
+  "launch.version": "0.2.0",
+  "launch.configurations": [
+    {
+      "name": "Debug BB Agent Server",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/test_server.py",
+      "console": "integratedTerminal",
+      "env": {
+        "DEBUG": "1",
+        "LOG_LEVEL": "DEBUG"
+      }
+    },
+    {
+      "name": "Debug Chat Client",
+      "type": "python", 
+      "request": "launch",
+      "program": "${workspaceFolder}/chat_client.py",
+      "args": ["--provider", "ollama"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

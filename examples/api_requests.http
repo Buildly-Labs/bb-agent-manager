@@ -1,0 +1,226 @@
+### BB Agent Manager API Testing
+### Use with REST Client or Thunder Client VS Code extensions
+
+@baseUrl = http://localhost:8001
+@provider = ollama
+@geminiProvider = gemini
+
+### Health Check
+GET {{baseUrl}}/health
+
+### Get Available Tools
+GET {{baseUrl}}/agent/mcp/tools
+
+###
+### CHAT EXAMPLES
+###
+
+### Code Review Chat - Ollama
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+  "provider": "{{provider}}",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a senior Python developer and code reviewer. Analyze code for best practices, security, performance, and maintainability. Provide specific, actionable feedback."
+    },
+    {
+      "role": "user", 
+      "content": "Please review this FastAPI endpoint and suggest improvements:\n\n```python\n@app.post('/users')\nasync def create_user(user_data: dict, db: Session = Depends(get_db)):\n    # Check if user exists\n    existing = db.query(User).filter(User.email == user_data['email']).first()\n    if existing:\n        raise HTTPException(status_code=400, detail='User exists')\n    \n    # Create user\n    user = User(**user_data)\n    db.add(user)\n    db.commit()\n    db.refresh(user)\n    \n    return {'id': user.id, 'email': user.email}\n```"
+    }
+  ]
+}
+
+### Documentation Generation Chat - Gemini
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+  "provider": "{{geminiProvider}}",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a technical documentation specialist. When asked to document code, use the update_devdocs tool to create comprehensive documentation that includes component reusability notes."
+    },
+    {
+      "role": "user",
+      "content": "I just implemented OAuth2 authentication with JWT tokens in src/auth.py. The implementation includes middleware, token validation, and refresh token support. Please document this change and note which components can be reused in other projects."
+    }
+  ]
+}
+
+### Test Generation Chat
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+  "provider": "{{provider}}",
+  "messages": [
+    {
+      "role": "system", 
+      "content": "You are a test automation expert. Generate comprehensive, realistic test cases using pytest. Include edge cases, error conditions, and mocking where appropriate."
+    },
+    {
+      "role": "user",
+      "content": "Generate pytest test cases for this function:\n\n```python\ndef calculate_discount(price: float, discount_percent: float, min_price: float = 10.0) -> float:\n    \"\"\"Calculate discounted price with minimum price threshold.\"\"\"\n    if price < 0 or discount_percent < 0 or discount_percent > 100:\n        raise ValueError(\"Invalid input values\")\n    \n    if price < min_price:\n        return price\n    \n    discount_amount = price * (discount_percent / 100)\n    return max(price - discount_amount, min_price)\n```"
+    }
+  ]
+}
+
+### Debugging Assistant Chat
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+  "provider": "{{provider}}",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a debugging expert. Help identify root causes of issues and provide clear, step-by-step solutions."
+    },
+    {
+      "role": "user",
+      "content": "I'm getting this error when running my FastAPI app:\n\n```\nValueError: [Errno 98] Address already in use\n```\n\nThe error occurs when I try to start the server with `uvicorn main:app --reload`. I've checked with `lsof -i :8000` and there's no process running on port 8000. What could be causing this?"
+    }
+  ]
+}
+
+### Architecture Design Chat
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+  "provider": "{{geminiProvider}}",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a software architect. Provide architectural guidance, design patterns, and best practices for scalable applications."
+    },
+    {
+      "role": "user",
+      "content": "I need to design a microservice for user notifications that can handle email, SMS, and push notifications. The service should support templates, scheduling, and delivery tracking. What architecture would you recommend for scalability and maintainability?"
+    }
+  ]
+}
+
+### Git Workflow Chat
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+  "provider": "{{provider}}",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a Git workflow expert. Help with version control best practices, branching strategies, and repository management. Use git tools when appropriate."
+    },
+    {
+      "role": "user",
+      "content": "I've been working on a feature branch for 2 weeks and want to merge it to main. There have been many commits to main since I started. What's the best way to handle this? Should I rebase, merge, or squash? Please check the current git status first."
+    }
+  ]
+}
+
+###
+### DIRECT TOOL INVOCATIONS
+###
+
+### Update DevDocs Tool
+POST {{baseUrl}}/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "update_devdocs",
+  "arguments": {
+    "files": ["src/auth.py", "src/middleware/auth_middleware.py", "tests/test_auth.py"],
+    "summary": "Implemented OAuth2 authentication system with JWT tokens, refresh token support, and role-based access control middleware",
+    "component_reuse_notes": "The auth middleware, JWT utilities, and token validation decorators are designed for reusability. Consider extracting to shared auth library: JWTManager class, AuthMiddleware, @require_auth decorator, and TokenValidator can be packaged as 'buildly-auth' for use across projects."
+  }
+}
+
+### Git Status Tool
+POST {{baseUrl}}/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "git_status",
+  "arguments": {}
+}
+
+### Run Tests Tool
+POST {{baseUrl}}/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "run_tests", 
+  "arguments": {
+    "test_files": ["tests/test_auth.py"],
+    "verbose": true
+  }
+}
+
+### Sync Labs Component Tool
+POST {{baseUrl}}/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "sync_labs_component",
+  "arguments": {
+    "component_name": "oauth2-auth-system",
+    "component_path": "src/auth/",
+    "description": "OAuth2 authentication system with JWT tokens and middleware",
+    "reusability_score": 9,
+    "dependencies": ["fastapi", "python-jose", "passlib"],
+    "tags": ["auth", "oauth2", "jwt", "middleware", "security"]
+  }
+}
+
+###
+### CHAT CONVERSATIONS (Multi-turn)
+###
+
+### Start a Code Review Conversation
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+  "provider": "{{provider}}",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a senior developer conducting a code review. Be thorough but constructive."
+    },
+    {
+      "role": "user",
+      "content": "I need you to review my new user registration endpoint. I'll share the code in parts. First, here's the main endpoint:\n\n```python\n@router.post('/register', response_model=UserResponse)\nasync def register_user(user_data: UserCreate, db: Session = Depends(get_db)):\n    # Validate email format\n    if '@' not in user_data.email:\n        raise HTTPException(400, 'Invalid email')\n    \n    # Check if user exists\n    if db.query(User).filter(User.email == user_data.email).first():\n        raise HTTPException(400, 'User already exists')\n    \n    # Hash password\n    hashed_password = hash_password(user_data.password)\n    \n    # Create user\n    db_user = User(\n        email=user_data.email,\n        hashed_password=hashed_password,\n        is_active=True\n    )\n    \n    db.add(db_user)\n    db.commit()\n    db.refresh(db_user)\n    \n    return UserResponse.from_orm(db_user)\n```\n\nWhat are your initial thoughts?"
+    }
+  ]
+}
+
+### Follow-up in same conversation (send after the above)
+# POST {{baseUrl}}/agent/chat
+# Content-Type: application/json
+
+# {
+#   "provider": "{{provider}}",
+#   "messages": [
+#     {
+#       "role": "system",
+#       "content": "You are a senior developer conducting a code review. Be thorough but constructive."
+#     },
+#     {
+#       "role": "user",
+#       "content": "I need you to review my new user registration endpoint. I'll share the code in parts. First, here's the main endpoint:\n\n```python\n@router.post('/register', response_model=UserResponse)\nasync def register_user(user_data: UserCreate, db: Session = Depends(get_db)):\n    # Validate email format\n    if '@' not in user_data.email:\n        raise HTTPException(400, 'Invalid email')\n    \n    # Check if user exists\n    if db.query(User).filter(User.email == user_data.email).first():\n        raise HTTPException(400, 'User already exists')\n    \n    # Hash password\n    hashed_password = hash_password(user_data.password)\n    \n    # Create user\n    db_user = User(\n        email=user_data.email,\n        hashed_password=hashed_password,\n        is_active=True\n    )\n    \n    db.add(db_user)\n    db.commit()\n    db.refresh(db_user)\n    \n    return UserResponse.from_orm(db_user)\n```\n\nWhat are your initial thoughts?"
+#     },
+#     {
+#       "role": "assistant", 
+#       "content": "[Previous assistant response would be here]"
+#     },
+#     {
+#       "role": "user",
+#       "content": "Thanks for the feedback! Here's the password hashing function I'm using:\n\n```python\ndef hash_password(password: str) -> str:\n    import hashlib\n    return hashlib.md5(password.encode()).hexdigest()\n```\n\nAnd the UserCreate model:\n\n```python\nclass UserCreate(BaseModel):\n    email: str\n    password: str\n    name: str = None\n```\n\nAny additional concerns with these?"
+#     }
+#   ]
+# }
