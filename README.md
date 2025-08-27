@@ -2,7 +2,40 @@
 
 ## Overview
 
-**bb-agent-manager** is an AI-powered development assistant designed as a pluggable module for the BabbleBeaver platform. It provides intelligent automation for Buildly Labs development workflows, integrating LLM capabilities with project management and documentation tools.
+**bb-agent-manager** is an AI-powered development assistant designed as a pluggable module for the BabbleBeaver platform. It provides intelligent automation for Buildly Labs development workflows, integrating LLM capabilities with ## Development
+
+### Testing Standalone
+```bash
+# Run test server
+python test_server.py
+
+# Run test suite
+python test_client.py
+
+# Test with Docker
+docker-compose -f docker-compose.test.yml up
+```
+
+### Integration Testing
+```bash
+# Test plugin mode
+pip install -e .
+# Add to BabbleBeaver and test
+
+# Test microservice mode
+docker-compose -f docker-compose.prod.yml up -d
+curl http://localhost:8001/agent/mcp/tools
+```
+
+This project follows Buildly's development standards:
+
+- **Documentation**: All changes documented in `/devdocs` with summaries and reuse notes
+- **API Documentation**: OpenAPI/Swagger specs for all endpoints  
+- **Code Standards**: Python type hints, async/await patterns, Pydantic models
+- **Testing**: Comprehensive test coverage with pytest
+- **Architecture**: Clean separation of concerns, dependency injection via FastAPI
+- **Security**: Repository allow-lists, environment-based configuration, GitHub App authentication
+- **Deployment**: Both plugin and microservice patterns supportednagement and documentation tools.
 
 ## What It Does
 
@@ -82,11 +115,15 @@ bb-agent-manager/
 
 ## Installation & Setup
 
-### Option A: Entry-point Auto-load (Recommended)
+BB Agent Manager supports two deployment modes:
 
-Add your private repository credentials to BabbleBeaver's environment:
+### 🔌 Plugin Mode (Embedded)
+**Best for**: Development, simple deployments, single-node setups
+
+#### Option A: Entry-point Auto-load (Recommended)
 
 ```bash
+# Install in BabbleBeaver's environment
 pip install bb-agent-manager @ git+ssh://git@github.com/Buildly-Labs/bb-agent-manager.git
 ```
 
@@ -104,13 +141,52 @@ for ep in pkg_resources.iter_entry_points(group="babblebeaver.modules"):
         print(f"[BB] Failed to load module {ep.name}: {e}")
 ```
 
-### Option B: Explicit Import
+#### Option B: Explicit Import
 
 ```python
 # babblebeaver/main.py  
 from bb_agent_manager import register as register_bb_agent
 register_bb_agent(app, {})
 ```
+
+### 🚀 Microservice Mode (Independent)
+**Best for**: Production, scaling, cloud deployments, isolation
+
+#### Quick Start with Docker Compose
+
+```bash
+# Clone and setup
+git clone https://github.com/Buildly-Labs/bb-agent-manager.git
+cd bb-agent-manager
+cp .env.example .env
+# Edit .env with your API keys
+
+# Deploy as microservices
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+**Access Points:**
+- BabbleBeaver: `http://localhost:8000`
+- BB Agent Manager: `http://localhost:8001`
+- Combined via Nginx: `http://localhost` (optional)
+
+#### Production Deployment
+
+```bash
+# Build production image
+docker build -f Dockerfile.prod -t bb-agent-manager:prod .
+
+# Run independently
+docker run -d \
+  --name bb-agent-manager \
+  -p 8001:8000 \
+  -e GEMINI_API_KEY=your_key \
+  -e LABS_API_TOKEN=your_token \
+  --restart unless-stopped \
+  bb-agent-manager:prod
+```
+
+> 📖 **See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for comprehensive deployment options including Kubernetes, monitoring, and BabbleBeaver integration patterns.**
 
 ## Configuration
 
@@ -139,26 +215,54 @@ BB_AM_MOUNT_PATH=/agent
 
 ## Docker Compose Example
 
+### Development/Testing
 ```yaml
+# docker-compose.test.yml
 services:
-  babblebeaver:
+  bb-agent-test:
     build: .
-    env_file: .env
-    volumes:
-      - ./:/app
     ports:
-      - "8000:8000"
-      
+      - "8001:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - LABS_API_TOKEN=${LABS_API_TOKEN}
+    volumes:
+      - ./test_server.py:/app/main.py
+
   ollama:
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-
-volumes:
-  ollama: {}
 ```
+
+### Production Microservices
+```yaml
+# docker-compose.prod.yml - Full setup with BabbleBeaver
+services:
+  babblebeaver:
+    build: ./babblebeaver
+    ports:
+      - "8000:8000"
+    depends_on:
+      - bb-agent-manager
+
+  bb-agent-manager:
+    build:
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8001:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - LABS_API_TOKEN=${LABS_API_TOKEN}
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+```
+
+Run with: `docker-compose -f docker-compose.prod.yml up -d`
 
 ## API Usage
 
@@ -209,7 +313,13 @@ This project follows Buildly's development practices:
 3. Make changes following Buildly coding standards
 4. Update `/devdocs` with change summary and component reuse notes
 5. Add/update tests as needed
-6. Submit pull request with clear description
+6. Test in both plugin and microservice modes
+7. Submit pull request with clear description
+
+### Development Resources
+- **Integration Guide**: [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) - Detailed setup and testing
+- **Deployment Guide**: [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Production deployment patterns
+- **AI Guidelines**: [.github/prompts/buildly-guidelines.md](.github/prompts/buildly-guidelines.md) - Buildly development practices
 
 ## License
 

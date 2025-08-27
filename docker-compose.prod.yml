@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # BabbleBeaver main application
+  babblebeaver:
+    build:
+      context: ./babblebeaver  # Path to BabbleBeaver repository
+    ports:
+      - "8000:8000"
+    environment:
+      # BabbleBeaver configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      
+      # BB Agent Manager microservice URL
+      - BB_AGENT_SERVICE_URL=http://bb-agent-manager:8000
+    depends_on:
+      - bb-agent-manager
+    networks:
+      - buildly-network
+
+  # BB Agent Manager microservice
+  bb-agent-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8001:8000"  # Expose on different port for direct access
+    environment:
+      # Core configuration
+      - BB_AM_DEFAULT_PROVIDER=gemini
+      - BB_AM_MOUNT_PATH=/agent
+      
+      # AI Provider Keys
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=gemini-1.5-pro
+      - OLLAMA_BASE_URL=http://ollama:11434/v1
+      - OLLAMA_MODEL=llama3.1:8b
+      
+      # Buildly Labs Integration
+      - LABS_BASE_URL=https://labs.buildly.io/api
+      - LABS_API_TOKEN=${LABS_API_TOKEN}
+      
+      # GitHub Integration
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      
+      # Production settings
+      - LOG_LEVEL=INFO
+    volumes:
+      - agent_devdocs:/app/devdocs
+      - agent_logs:/app/logs
+    depends_on:
+      - ollama
+    networks:
+      - buildly-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Ollama for local AI models
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - buildly-network
+    restart: unless-stopped
+
+  # Optional: Reverse proxy for unified API
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - babblebeaver
+      - bb-agent-manager
+    networks:
+      - buildly-network
+    profiles:
+      - proxy
+
+volumes:
+  ollama_data:
+  agent_devdocs:
+  agent_logs:
+
+networks:
+  buildly-network:
+    driver: bridge

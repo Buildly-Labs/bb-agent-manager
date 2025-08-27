@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  bb-agent-test:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      # Core configuration
+      - BB_AM_DEFAULT_PROVIDER=gemini
+      - BB_AM_MOUNT_PATH=/agent
+      
+      # AI Provider Keys (set in your .env file)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=gemini-1.5-pro
+      - OLLAMA_BASE_URL=http://ollama:11434/v1
+      - OLLAMA_MODEL=llama3.1:8b
+      
+      # Buildly Labs Integration
+      - LABS_BASE_URL=https://labs.buildly.io/api
+      - LABS_API_TOKEN=${LABS_API_TOKEN}
+      
+      # GitHub Integration
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    volumes:
+      - ./test_server.py:/app/main.py
+      - ./devdocs:/app/devdocs
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    depends_on:
+      - ollama
+    networks:
+      - bb-agent-network
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - bb-agent-network
+    # Pull a model on startup (optional)
+    # command: ["ollama", "pull", "llama3.1:8b"]
+
+  # Optional: Add a simple test runner
+  test-runner:
+    build: .
+    volumes:
+      - ./test_client.py:/app/test_client.py
+    depends_on:
+      - bb-agent-test
+    networks:
+      - bb-agent-network
+    command: ["python", "/app/test_client.py"]
+    profiles:
+      - test
+    environment:
+      - BASE_URL=http://bb-agent-test:8000
+
+volumes:
+  ollama_data:
+
+networks:
+  bb-agent-network:
+    driver: bridge
