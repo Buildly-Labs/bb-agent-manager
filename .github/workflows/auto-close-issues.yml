@@ -1,0 +1,58 @@
+name: Auto-Close Issues on Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  close-linked-issues:
+    name: Close Linked Issues
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: Close issues linked to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const prBody = context.payload.pull_request.body || '';
+            
+            // Extract issue references from PR body
+            // Supports: fixes #123, closes #456, resolves #789
+            const issuePattern = /(?:fix(?:es|ed)?|close(?:s|d)?|resolve(?:s|d)?)\s+#(\d+)/gi;
+            const matches = [...prBody.matchAll(issuePattern)];
+            
+            for (const match of matches) {
+              const issueNumber = parseInt(match[1]);
+              
+              try {
+                // Close the issue
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'closed',
+                  state_reason: 'completed'
+                });
+                
+                // Add comment to issue
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: `✅ Closed by merged PR #${prNumber}\n\nThe changes from this issue have been reviewed, tested, and merged into main.`
+                });
+                
+                core.info(`Closed issue #${issueNumber}`);
+              } catch (error) {
+                core.warning(`Failed to close issue #${issueNumber}: ${error.message}`);
+              }
+            }
+            
+            if (matches.length === 0) {
+              core.info('No linked issues found in PR body');
+            }

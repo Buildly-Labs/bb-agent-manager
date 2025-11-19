@@ -1,0 +1,23 @@
+# Code Owners for BB Agent Manager
+# Requires human review for all AI-generated code
+
+# Default owners for everything
+* @Buildly-Labs/bb-agent-reviewers
+
+# Core agent logic requires senior review
+/bb_agent_manager/ @Buildly-Labs/senior-engineers
+
+# LLM providers require AI/ML team review
+/bb_agent_manager/llm/ @Buildly-Labs/ai-ml-team
+
+# Security-sensitive components
+/bb_agent_manager/tools/git_ops.py @Buildly-Labs/security-team
+/.github/workflows/ @Buildly-Labs/devops-team
+
+# Documentation
+*.md @Buildly-Labs/documentation-team
+
+# Configuration files
+*.yml @Buildly-Labs/devops-team
+*.yaml @Buildly-Labs/devops-team
+requirements.txt @Buildly-Labs/senior-engineers
