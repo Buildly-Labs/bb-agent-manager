@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  bb-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bb-agent-manager
+    ports:
+      - "8001:8000"
+    environment:
+      # LLM Provider Configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-pro}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-3-5-sonnet-20241022}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      - BB_AM_DEFAULT_PROVIDER=${BB_AM_DEFAULT_PROVIDER:-gemini}
+      
+      # Buildly Labs Integration
+      - LABS_BASE_URL=${LABS_BASE_URL:-https://labs.buildly.io/api}
+      - LABS_API_TOKEN=${LABS_API_TOKEN:-}
+      
+      # GitHub Integration
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_REPO=${GITHUB_REPO:-Buildly-Labs/bb-agent-manager}
+      - REQUIRE_HUMAN_REVIEW=${REQUIRE_HUMAN_REVIEW:-true}
+      - AUTO_CLOSE_ISSUES=${AUTO_CLOSE_ISSUES:-true}
+      - CREATE_DRAFT_PRS=${CREATE_DRAFT_PRS:-true}
+      
+      # Server Configuration
+      - BB_AM_MOUNT_PATH=/agent
+      - DEBUG=1
+      - LOG_LEVEL=INFO
+      - PYTHONPATH=/app
+    volumes:
+      # Mount devdocs for persistence
+      - ./devdocs:/app/devdocs
+    command: ["python3", "-m", "uvicorn", "bb_agent_manager.mcp.server:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    extra_hosts:
+      # Allow container to reach host's Ollama
+      - "host.docker.internal:host-gateway"
+
+networks:
+  default:
+    name: bb-agent-network

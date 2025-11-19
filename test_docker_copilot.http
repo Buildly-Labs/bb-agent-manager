@@ -1,0 +1,51 @@
+### Test BB Agent Manager Running in Docker
+
+# Health Check
+GET http://localhost:8001/health
+
+### List Available Tools
+GET http://localhost:8001/agent/mcp/tools
+
+### Write Documentation
+POST http://localhost:8001/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "devdocs_write",
+  "arguments": {
+    "filename": "copilot_test.md",
+    "content": "# Copilot Integration Test\n\n## Overview\n\nTesting BB Agent Manager from GitHub Copilot!\n\n## Features\n- Write documentation\n- Read documentation\n- List all docs\n\n## Status\n✅ Working perfectly in Docker!"
+  }
+}
+
+### Read Documentation
+POST http://localhost:8001/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "devdocs_read",
+  "arguments": {
+    "filename": "copilot_test.md"
+  }
+}
+
+### List All Documentation Files
+POST http://localhost:8001/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "devdocs_list",
+  "arguments": {}
+}
+
+### Example: Write API Documentation
+POST http://localhost:8001/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "devdocs_write",
+  "arguments": {
+    "filename": "api_overview.md",
+    "content": "# API Overview\n\n## Authentication\n\nAll API requests require authentication using Bearer tokens.\n\n```bash\ncurl -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  http://localhost:8001/agent/mcp/tools\n```\n\n## Endpoints\n\n### GET /health\nReturns service health status\n\n### GET /agent/mcp/tools\nList all available tools\n\n### POST /agent/mcp/invoke\nInvoke a specific tool with arguments"
+  }
+}
