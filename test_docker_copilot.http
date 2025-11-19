@@ -49,3 +49,29 @@ Content-Type: application/json
     "content": "# API Overview\n\n## Authentication\n\nAll API requests require authentication using Bearer tokens.\n\n```bash\ncurl -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  http://localhost:8001/agent/mcp/tools\n```\n\n## Endpoints\n\n### GET /health\nReturns service health status\n\n### GET /agent/mcp/tools\nList all available tools\n\n### POST /agent/mcp/invoke\nInvoke a specific tool with arguments"
   }
 }
+
+### Test Buildly Labs Connection
+POST http://localhost:8001/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "buildly_test_connection",
+  "arguments": {}
+}
+
+### Login to Buildly Labs (Update with your credentials)
+POST http://localhost:8001/agent/mcp/invoke
+Content-Type: application/json
+
+{
+  "name": "buildly_login",
+  "arguments": {
+    "username": "your-username",
+    "password": "your-password"
+  }
+}
+
+### Example: After login, you'll get access_token and refresh_token
+# Use the access_token for authenticated requests like:
+# GET https://labs-api.buildly.io/api/organizations/
+# Authorization: Bearer YOUR_ACCESS_TOKEN

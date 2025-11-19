@@ -112,6 +112,44 @@
         "panel": "shared"
       },
       "problemMatcher": "$python"
+    },
+    {
+      "label": "BB Agent: Write Docs",
+      "type": "shell",
+      "command": "curl",
+      "args": [
+        "-X", "POST",
+        "http://localhost:8001/agent/mcp/invoke",
+        "-H", "Content-Type: application/json",
+        "-d", "{\"name\":\"devdocs_write\",\"arguments\":{\"filename\":\"${input:filename}\",\"content\":\"${input:content}\"}}"
+      ],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "BB Agent: List Docs",
+      "type": "shell",
+      "command": "curl",
+      "args": [
+        "-X", "POST", 
+        "http://localhost:8001/agent/mcp/invoke",
+        "-H", "Content-Type: application/json",
+        "-d", "{\"name\":\"devdocs_list\",\"arguments\":{}}"
+      ],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "new"
+      },
+      "problemMatcher": []
     }
   ],
   
@@ -136,6 +174,20 @@
       "program": "${workspaceFolder}/chat_client.py",
       "args": ["--provider", "ollama"],
       "console": "integratedTerminal"
+    }
+  ],
+  
+  // Input prompts for BB Agent tasks
+  "inputs": [
+    {
+      "id": "filename",
+      "type": "promptString",
+      "description": "Documentation filename (e.g., api.md)"
+    },
+    {
+      "id": "content",
+      "type": "promptString",
+      "description": "Documentation content"
     }
   ]
 }
