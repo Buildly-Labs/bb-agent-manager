@@ -5,18 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bb-agent-manager"
 version = "0.1.0"
-description = "BabbleBeaver Agent Manager extension (private)"
+description = "Buildly Labs MCP Server - AI integration for Buildly platform"
 authors = [{name="Buildly Labs", email="dev@buildly.io"}]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-  "fastapi>=0.111",
-  "uvicorn[standard]>=0.24.0",
-  "pydantic>=2.7",
-  "httpx>=0.27",
-  "openai>=1.40",      # works with Ollama's OpenAI-compatible API
-  "google-generativeai>=0.7",  # Gemini
-  "anthropic>=0.34.0",  # Claude
-  "python-dotenv>=1.0",
+  "mcp>=1.0.0",        # Official MCP SDK
+  "httpx>=0.27",       # For API calls to Buildly Labs
 ]
 
 [project.entry-points."babblebeaver.modules"]

@@ -1,8 +1,86 @@
-# BB Agent Manager
+# Buildly Labs MCP Server
 
 ## Overview
 
-**bb-agent-manager** is an AI-powered development assistant designed as a pluggable module for the BabbleBeaver platform. It provides intelligent automation for Buildly Labs development workflows, integrating LLM capabilities with ## Development
+**buildly-agent** is a Model Context Protocol (MCP) server that enables AI assistants (like Claude Desktop, Claude Code, Cursor) to interact with the Buildly Labs platform. It provides tools for documentation management and Buildly Labs API integration.
+
+## Quick Start - AI Integration
+
+### Claude Desktop (Recommended)
+
+1. **Start the Docker container:**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Add the MCP server:**
+   ```bash
+   claude mcp add --transport http buildly-agent http://localhost:8001/agent
+   ```
+
+3. **Restart Claude Desktop** and run `/mcp` to verify connection
+
+4. **Use in chat:**
+   - "Login to Buildly Labs"
+   - "Show me my issues"
+   - "List my products"
+   - "Write API docs to devdocs/api.md"
+
+### Cursor IDE
+
+1. **Start the Docker container:**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Create MCP config** at `~/.cursor/mcp.json`:
+   ```json
+   {
+     "mcpServers": {
+       "buildly-agent": {
+         "command": "node",
+         "args": ["-e", "const http = require('http'); process.stdin.pipe(http.request({host:'localhost',port:8001,path:'/agent/mcp/invoke',method:'POST',headers:{'Content-Type':'application/json'}}, res => res.pipe(process.stdout)))"]
+       }
+     }
+   }
+   ```
+
+3. **Restart Cursor** and use AI chat to invoke tools
+
+### VS Code with GitHub Copilot
+
+1. **Start the Docker container:**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Create MCP config** at `~/.config/Code/User/globalStorage/github.copilot-chat/mcp.json`:
+   ```json
+   {
+     "mcpServers": {
+       "buildly-agent": {
+         "command": "node",
+         "args": ["-e", "const http = require('http'); process.stdin.pipe(http.request({host:'localhost',port:8001,path:'/agent/mcp/invoke',method:'POST',headers:{'Content-Type':'application/json'}}, res => res.pipe(process.stdout)))"]
+       }
+     }
+   }
+   ```
+
+3. **Reload VS Code window** (Cmd/Ctrl+Shift+P → "Reload Window")
+
+4. **Use in Copilot Chat:** Type `@buildly-agent` to invoke tools
+
+**Note:** VS Code Copilot has limited MCP support. For best experience, use Claude Desktop or Cursor.
+
+## Available Tools
+
+- **devdocs_write** - Write documentation to devdocs folder
+- **devdocs_read** - Read documentation files
+- **devdocs_list** - List all documentation files
+- **buildly_login** - Authenticate with Buildly Labs
+- **buildly_test_connection** - Test Buildly Labs API connection
+- **buildly_get_issues** - Fetch your Buildly issues
+- **buildly_get_products** - Fetch your Buildly products ## Development
 
 ### Testing Standalone
 ```bash

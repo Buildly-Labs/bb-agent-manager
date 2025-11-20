@@ -9,31 +9,17 @@ ENV PYTHONPATH=/app
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        git \
-        curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better caching
+# Copy requirements and install minimal dependencies
 COPY pyproject.toml .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir .
+    && pip install --no-cache-dir mcp httpx
 
-# Copy the application
-COPY . .
+# Copy MCP server
+COPY buildly_mcp_server.py .
 
 # Create necessary directories
 RUN mkdir -p /app/devdocs
 
-# Make test scripts executable
-RUN chmod +x test_server.py test_client.py
+# Default command - run MCP server on stdio
+CMD ["python3", "buildly_mcp_server.py"]
 
-# Expose port
-EXPOSE 8000
-
-# Default command (can be overridden)
-CMD ["uvicorn", "test_server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
