@@ -52,19 +52,19 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="buildly_login",
-            description="Login to Buildly Labs platform",
+            description="Authenticate with Buildly Labs and get access tokens. Use this first before calling other buildly tools. Returns JWT access and refresh tokens.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "username": {"type": "string"},
-                    "password": {"type": "string"}
+                    "username": {"type": "string", "description": "Buildly Labs username"},
+                    "password": {"type": "string", "description": "Buildly Labs password"}
                 },
                 "required": ["username", "password"]
             }
         ),
         Tool(
             name="buildly_test_connection",
-            description="Test connection to Buildly Labs API",
+            description="Test connection to Buildly Labs API to verify it's reachable",
             inputSchema={
                 "type": "object",
                 "properties": {}
@@ -72,22 +72,22 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="buildly_get_issues",
-            description="Get issues from Buildly Labs",
+            description="Fetch all issues from Buildly Labs for the authenticated user. Returns a formatted list of issues with IDs and titles. Use the access_token from buildly_login.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "access_token": {"type": "string"}
+                    "access_token": {"type": "string", "description": "JWT access token from buildly_login"}
                 },
                 "required": ["access_token"]
             }
         ),
         Tool(
             name="buildly_get_products",
-            description="Get products from Buildly Labs",
+            description="Fetch all products from Buildly Labs for the authenticated user. Returns a formatted list of product names. Use the access_token from buildly_login.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "access_token": {"type": "string"}
+                    "access_token": {"type": "string", "description": "JWT access token from buildly_login"}
                 },
                 "required": ["access_token"]
             }
