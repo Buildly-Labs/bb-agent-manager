@@ -2,7 +2,7 @@ from pydantic import BaseModel
 import os
 
 class AgentSettings(BaseModel):
-    labs_base_url: str = os.getenv("LABS_BASE_URL", "https://labs.buildly.io/api")
+    labs_base_url: str = os.getenv("LABS_BASE_URL", "http://labs.buildly.io/api/v1")
     labs_api_token: str = os.getenv("LABS_API_TOKEN", "")
     default_provider: str = os.getenv("BB_AM_DEFAULT_PROVIDER", "gemini")  # "gemini" | "ollama" | "claude" | "openai"
     

@@ -1,0 +1,52 @@
+name: Build and Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: dev-buildly
+  REGION: us-central1
+  SERVICE_NAME: bb-agent-manager
+  IMAGE_NAME: us-central1-docker.pkg.dev/dev-buildly/gcr.io/labs-product
+
+jobs:
+  build-and-deploy:
+    name: Build, Push, and Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v3
+
+      - id: "auth"
+        uses: "google-github-actions/auth@v1"
+        with:
+          credentials_json: "${{ secrets.GCR_JSON_KEY }}"
+
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v1"
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          install_components: 'beta'
+
+      - name: "Use gcloud CLI"
+        run: "gcloud info"
+
+      - name: "Docker auth"
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build docker image
+        run: docker build -t $IMAGE_NAME:latest .
+
+      - name: Push to Google Artifact Registry
+        run: docker push $IMAGE_NAME:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy $SERVICE_NAME \
+            --image $IMAGE_NAME:latest \
+            --region $REGION \
+            --platform=managed \
+            --allow-unauthenticated
