@@ -1,8 +1,71 @@
-# Buildly Labs MCP Server
+# BB Agent Manager - AI-Powered Task Management
 
 ## Overview
 
-**buildly-agent** is a Model Context Protocol (MCP) server that enables AI assistants (like Claude Desktop, Claude Code, Cursor) to interact with the Buildly Labs platform. It provides tools for documentation management and Buildly Labs API integration.
+**BB Agent Manager** is a complete AI-powered task management system that integrates with Buildly Labs. It provides:
+
+- 🤖 **AI-Powered Task Prioritization** - Analyzes and ranks your work by impact/effort
+- 💬 **Interactive Work Coach** - Gets guidance for each task from an AI assistant
+- 📝 **Automated Task Updates** - Updates task status and adds insights automatically
+- 📊 **Progress Tracking** - Logs work sessions and provides analytics
+
+This is a Model Context Protocol (MCP) server that also provides CLI tools for direct integration with Buildly Labs.
+
+## 🚀 Get Started in 5 Minutes
+
+### Option 1: Interactive AI Work Coach (Recommended)
+
+```bash
+# 1. Authenticate with Buildly Labs (first time only)
+python scripts/test_buildly_integration.py
+
+# 2. Get AI-powered work plan
+python scripts/ai_task_prioritizer.py
+
+# 3. Start interactive session
+python scripts/ai_work_coach.py
+```
+
+👉 **[See Full Setup Guide →](BUILDLY_INTEGRATION_READY.md)**
+
+### Option 2: AI Assistance Integration
+
+**Claude Desktop:**
+```bash
+# 1. Start the server
+python start_agent.py --provider claude
+
+# 2. Add to Claude:
+claude mcp add --transport http buildly-agent http://localhost:8001/agent
+```
+
+## Features
+
+✅ **Buildly Labs Integration**
+- Login with your credentials
+- Select organization and product
+- Fetch prioritized tasks
+- Update task status and add comments
+- Link commits to tasks
+
+✅ **AI-Powered Assistance**
+- Automatic work prioritization
+- Task-specific guidance
+- Risk assessment
+- Timeline estimation
+- Team recommendations
+
+✅ **Multiple AI Providers**
+- Claude (Anthropic) - Recommended
+- OpenAI (GPT-4)
+- Google Gemini
+- Local Ollama
+
+✅ **Task Management**
+- 6-state workflow (open → resolved)
+- Comments and insights
+- Bulk operations
+- Progress tracking
 
 ## Quick Start - AI Integration
 

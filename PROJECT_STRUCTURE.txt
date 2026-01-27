@@ -1,0 +1,185 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                   BB AGENT MANAGER - PROJECT STRUCTURE                     ║
+║                         (Reorganized Jan 27, 2026)                         ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+bb-agent/
+│
+├─ 📄 README.md                          Main project overview
+├─ 📄 pyproject.toml                     Package metadata & entry points
+├─ 📄 requirements.txt                   Runtime dependencies
+├─ 📄 requirements-dev.txt               Development dependencies
+├─ 📄 REORGANIZATION_SUMMARY.md          (NEW) Summary of recent changes
+│
+├─ 📁 devdocs/                           📚 DEVELOPER DOCUMENTATION ⭐
+│  ├─ 📄 INDEX.md                        (NEW) Master documentation index
+│  ├─ 📄 ARCHITECTURE.md                 (NEW/MOVED) System architecture
+│  ├─ 📄 TODO.md                         (NEW) Development roadmap
+│  ├─ 📄 QUICK_START.md                  Quick start guide
+│  ├─ 📄 ENVIRONMENT_SETUP.md            Environment configuration
+│  ├─ 📄 INTEGRATION_GUIDE.md            IDE integration setup
+│  ├─ 📄 DEPLOYMENT_GUIDE.md             Production deployment
+│  ├─ 📄 IDE_INTEGRATION_GUIDE.md        IDE-specific guides
+│  ├─ 📄 BUILDLY_LABS_INTEGRATION.md     Buildly integration
+│  ├─ 📄 COPILOT_CURSOR_INTEGRATION.md   Copilot/Cursor setup
+│  ├─ 📄 TEST_RESULTS.md                 Test execution results
+│  └─ 📄 index.md                        Change log
+│
+├─ 📁 ops/                               🔧 OPERATIONS & MANAGEMENT ⭐
+│  ├─ 📄 README.md                       Operations guide
+│  └─ 🔨 startup.sh                      (NEW) App lifecycle control
+│     ├─ ✓ start       - Start application on port 8000
+│     ├─ ✓ stop        - Stop running application  
+│     ├─ ✓ restart     - Restart application
+│     ├─ ✓ status      - Check application status
+│     ├─ ✓ logs        - View application logs
+│     └─ ✓ help        - Show help message
+│
+├─ 📁 scripts/                           📝 DEVELOPMENT & TEST SCRIPTS ⭐
+│  ├─ 📄 README.md                       (NEW) Scripts guide
+│  ├─ 🐍 test_server.py                  (MOVED) Development FastAPI server
+│  ├─ 🐍 chat_client.py                  (MOVED) CLI chat client
+│  ├─ 🐍 test_client.py                  (MOVED) HTTP test client
+│  ├─ 🐍 simple_test_server.py           (MOVED) Simplified test server
+│  ├─ 🐍 test_issues.py                  (MOVED) Issue testing utilities
+│  ├─ 🐍 start_agent.py                  (MOVED) Agent startup
+│  ├─ 🐍 mcp_server_stdio.py             (MOVED) MCP stdio server
+│  ├─ 🔨 test_mcp_docker.sh              (MOVED) MCP Docker tests
+│  ├─ 🔨 mcp_bridge.sh                   (MOVED) MCP bridge
+│  ├─ 🔨 claude_bridge.sh                (MOVED) Claude bridge
+│  └─ 🔨 mcp_stdio_bridge.sh             (MOVED) Stdio bridge
+│
+├─ 📁 tests/                             🧪 TESTS & FIXTURES ⭐
+│  ├─ 📄 README.md                       (NEW) Testing guide
+│  ├─ 🐍 conftest.py                     (NEW) Pytest configuration & fixtures
+│  │  ├─ ✓ settings fixture              Configuration settings
+│  │  ├─ ✓ Mock LLM responses            Claude, OpenAI, Gemini mocks
+│  │  ├─ ✓ Mock GitHub responses        PR & issue responses
+│  │  ├─ ✓ Mock Buildly responses       Labs API responses
+│  │  └─ ✓ Pytest markers               unit, integration, asyncio
+│  ├─ 🐍 test_tools.py                   (PLANNED) Tools tests
+│  ├─ 🐍 test_providers.py               (PLANNED) Provider tests
+│  └─ 🐍 test_integration.py             (PLANNED) Integration tests
+│
+├─ 📁 bb_agent_manager/                  💻 MAIN APPLICATION
+│  ├─ 🐍 __init__.py
+│  ├─ 🐍 config.py                       Configuration management
+│  ├─ 🐍 main.py                         FastAPI application
+│  ├─ 🐍 plugin.py                       BabbleBeaver plugin
+│  ├─ 🐍 router.py                       Chat endpoints
+│  ├─ 🐍 orchestrator.py                 Agent orchestration
+│  │
+│  ├─ 📁 llm/                            LLM Provider Abstraction
+│  │  ├─ 🐍 base.py                      Base provider class
+│  │  ├─ 🐍 claude.py                    Anthropic Claude
+│  │  ├─ 🐍 openai_provider.py           OpenAI GPT models
+│  │  ├─ 🐍 gemini.py                    Google Gemini
+│  │  ├─ 🐍 ollama.py                    Local Ollama
+│  │  └─ 🐍 router.py                    Provider routing logic
+│  │
+│  ├─ 📁 mcp/                            Model Context Protocol
+│  │  ├─ 🐍 __init__.py
+│  │  └─ 🐍 server.py                    MCP JSON-RPC endpoint
+│  │
+│  └─ 📁 tools/                          Tool Implementations
+│     ├─ 🐍 __init__.py
+│     ├─ 🐍 devdocs.py                   Documentation management
+│     ├─ 🐍 git_ops.py                   GitHub PR/issue management
+│     ├─ 🐍 buildly_auth.py              Buildly authentication
+│     ├─ 🐍 labs_sync.py                 Task synchronization
+│     └─ 🐍 test_ops.py                  Testing operations
+│
+├─ 📁 .github/                           GitHub Configuration
+│  ├─ 📁 prompts/                        AI Development Standards
+│  │  ├─ 📄 buildly-guidelines.md        Development standards
+│  │  └─ 📄 TODO.md                      (NEW) Prompt engineering tasks
+│  │
+│  └─ 📁 workflows/                      CI/CD Automation
+│     ├─ 📄 code-review.yml              Code quality checks
+│     └─ 📄 auto-close-issues.yml        Issue auto-closing
+│
+├─ 📁 examples/                          Example Requests
+│  └─ 📄 api_requests.http               Example API calls
+│
+├─ 📁 .venv/                             Python Virtual Environment
+│
+├─ 📁 logs/                              Application Logs
+│
+├─ 🐳 Dockerfile                         Development image
+├─ 🐳 Dockerfile.prod                    Production image
+├─ 🐳 docker-compose.yml                 Development deployment
+├─ 🐳 docker-compose.test.yml            Test deployment
+├─ 🐳 docker-compose.prod.yml            Production deployment
+│
+├─ 📄 .env                               Environment variables (local)
+├─ 📄 .env.example                       Environment template
+├─ 📄 .gitignore                         Git ignore rules
+├─ 📄 INSTALLATION.md                    Installation guide
+│
+└─ .bb-agent.pid                         (RUNTIME) Process ID file
+
+═══════════════════════════════════════════════════════════════════════════════
+
+LEGEND:
+  📄 = Document/Markdown file
+  🐍 = Python file
+  🔨 = Shell script
+  🐳 = Docker file
+  📁 = Directory/Folder
+  ⭐ = Recently reorganized/created
+  (NEW) = Newly created
+  (MOVED) = Moved from root directory
+  (PLANNED) = To be implemented
+  ✓ = Feature/capability
+
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY IMPROVEMENTS:
+
+✅ Documentation
+   • Centralized in devdocs/ with master INDEX.md
+   • Architecture review moved to ARCHITECTURE.md
+   • Development roadmap in TODO.md
+   • Complete operational guide in ops/README.md
+
+✅ Operations
+   • New ops/startup.sh script for all lifecycle management
+   • Supports start, stop, restart, status, logs commands
+   • Auto handles venv, requirements, port checking
+   • Works in Docker and local development
+
+✅ Scripts Organization
+   • All development utilities moved to scripts/ folder
+   • Comprehensive README with usage examples
+   • Clear separation from core application code
+
+✅ Testing Foundation
+   • tests/ folder configured with conftest.py
+   • Pytest fixtures for all LLM providers
+   • Mock responses for GitHub, Buildly, and other APIs
+   • Ready for comprehensive test suite
+
+═══════════════════════════════════════════════════════════════════════════════
+
+QUICK START:
+
+1. Read Documentation:
+   cat devdocs/INDEX.md
+
+2. Start Application:
+   ./ops/startup.sh start
+
+3. View Status:
+   ./ops/startup.sh status
+
+4. Run Tests:
+   pytest tests/
+
+5. View Logs:
+   ./ops/startup.sh logs
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Generated: January 27, 2026
+Version: 1.0
+For more info: See devdocs/INDEX.md or REORGANIZATION_SUMMARY.md
