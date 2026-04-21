@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-01-27T15:55:38.990095",
+  "checks": [
+    {
+      "name": "Environment",
+      "passed": false,
+      "message": "'AgentSettings' object has no attribute 'llm_provider'"
+    },
+    {
+      "name": "Import httpx",
+      "passed": true,
+      "message": "Available"
+    },
+    {
+      "name": "Import asyncio",
+      "passed": true,
+      "message": "Available"
+    },
+    {
+      "name": "Import pydantic",
+      "passed": true,
+      "message": "Available"
+    },
+    {
+      "name": "Import pathlib",
+      "passed": true,
+      "message": "Available"
+    },
+    {
+      "name": "Buildly Auth",
+      "passed": false,
+      "message": "No session"
+    },
+    {
+      "name": "AI Claude",
+      "passed": false,
+      "message": "Not set"
+    },
+    {
+      "name": "AI OpenAI",
+      "passed": false,
+      "message": "Not set"
+    },
+    {
+      "name": "AI Gemini",
+      "passed": false,
+      "message": "Not set"
+    },
+    {
+      "name": "AI Ollama",
+      "passed": false,
+      "message": "Requires service"
+    },
+    {
+      "name": "Dir bb_agent_manager",
+      "passed": true,
+      "message": "Present"
+    },
+    {
+      "name": "Dir scripts",
+      "passed": true,
+      "message": "Present"
+    },
+    {
+      "name": "Dir devdocs",
+      "passed": true,
+      "message": "Present"
+    },
+    {
+      "name": "Dir tests",
+      "passed": true,
+      "message": "Present"
+    },
+    {
+      "name": "File requirements.txt",
+      "passed": true,
+      "message": "Present"
+    },
+    {
+      "name": "File .env",
+      "passed": true,
+      "message": "Present"
+    },
+    {
+      "name": "File README.md",
+      "passed": true,
+      "message": "Present"
+    },
+    {
+      "name": "Credentials",
+      "passed": false,
+      "message": "Error: [Errno 21] Is a directory: '/home/glind/.bb_agent_config.json'"
+    }
+  ],
+  "summary": {
+    "total": 18,
+    "passed": 11,
+    "failed": 7
+  }
+}
