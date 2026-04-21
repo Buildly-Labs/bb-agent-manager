@@ -4,14 +4,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bb-agent-manager"
-version = "0.1.0"
-description = "Buildly Labs MCP Server - AI integration for Buildly platform"
+version = "0.2.0"
+description = "Buildly MCP Server — model-agnostic context, memory, and workflow layer for AI coding agents"
 authors = [{name="Buildly Labs", email="dev@buildly.io"}]
 requires-python = ">=3.11"
 dependencies = [
-  "mcp>=1.0.0",        # Official MCP SDK
-  "httpx>=0.27",       # For API calls to Buildly Labs
+  "mcp>=1.0.0",     # Official MCP Python SDK
+  "httpx>=0.27",    # Buildly Labs API calls
+  "pydantic>=2.0",  # Settings and validation
 ]
+
+[project.scripts]
+buildly-mcp = "bb_agent_manager.mcp_server_stdio:main"
 
 [project.entry-points."babblebeaver.modules"]
 bb_agent_manager = "bb_agent_manager.plugin:register"
+
+[tool.setuptools.packages.find]
+include = ["bb_agent_manager*"]
+

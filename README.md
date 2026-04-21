@@ -1,404 +1,308 @@
-# Buildly Labs MCP Server
+# Buildly MCP Server
 
-## Overview
+**A model-agnostic context, memory, and workflow layer for AI coding agents.**
 
-**buildly-agent** is a Model Context Protocol (MCP) server that enables AI assistants (like Claude Desktop, Claude Code, Cursor) to interact with the Buildly Labs platform. It provides tools for documentation management and Buildly Labs API integration.
+Connect GitHub Copilot, Claude, Cursor, or any MCP-compatible client to Buildly Labs —
+with persistent project memory, devdocs automation, and workflow enforcement.
 
-## Quick Start - AI Integration
+---
 
-### Claude Desktop (Recommended)
+## What it does
 
-1. **Start the Docker container:**
-   ```bash
-   docker-compose up -d
-   ```
+| Capability | Description |
+|-----------|-------------|
+| **Buildly Labs** | Issues, products, features, milestones, work context |
+| **Persistent Memory** | Markdown-based project memory across sessions |
+| **DevDocs** | Automated developer documentation management |
+| **Workflow** | Definition of Done checks, release summaries |
+| **Environment** | Git state, env config, active product context |
 
-2. **Add the MCP server:**
-   ```bash
-   claude mcp add --transport http buildly-agent http://localhost:8001/agent
-   ```
+## What it does NOT do
 
-3. **Restart Claude Desktop** and run `/mcp` to verify connection
+- Does **not** host or serve AI models
+- Does **not** select Claude vs DeepSeek vs GPT — that is the client's job
+- Does **not** auto-merge PRs or close issues without human approval
 
-4. **Use in chat:**
-   - "Login to Buildly Labs"
-   - "Show me my issues"
-   - "List my products"
-   - "Write API docs to devdocs/api.md"
+Model selection is entirely the responsibility of the external MCP client.
 
-### Cursor IDE
+---
 
-1. **Start the Docker container:**
-   ```bash
-   docker-compose up -d
-   ```
-
-2. **Create MCP config** at `~/.cursor/mcp.json`:
-   ```json
-   {
-     "mcpServers": {
-       "buildly-agent": {
-         "command": "node",
-         "args": ["-e", "const http = require('http'); process.stdin.pipe(http.request({host:'localhost',port:8001,path:'/agent/mcp/invoke',method:'POST',headers:{'Content-Type':'application/json'}}, res => res.pipe(process.stdout)))"]
-       }
-     }
-   }
-   ```
-
-3. **Restart Cursor** and use AI chat to invoke tools
-
-### VS Code with GitHub Copilot
-
-1. **Start the Docker container:**
-   ```bash
-   docker-compose up -d
-   ```
-
-2. **Create MCP config** at `~/.config/Code/User/globalStorage/github.copilot-chat/mcp.json`:
-   ```json
-   {
-     "mcpServers": {
-       "buildly-agent": {
-         "command": "node",
-         "args": ["-e", "const http = require('http'); process.stdin.pipe(http.request({host:'localhost',port:8001,path:'/agent/mcp/invoke',method:'POST',headers:{'Content-Type':'application/json'}}, res => res.pipe(process.stdout)))"]
-       }
-     }
-   }
-   ```
-
-3. **Reload VS Code window** (Cmd/Ctrl+Shift+P → "Reload Window")
-
-4. **Use in Copilot Chat:** Type `@buildly-agent` to invoke tools
-
-**Note:** VS Code Copilot has limited MCP support. For best experience, use Claude Desktop or Cursor.
-
-## Available Tools
-
-- **devdocs_write** - Write documentation to devdocs folder
-- **devdocs_read** - Read documentation files
-- **devdocs_list** - List all documentation files
-- **buildly_login** - Authenticate with Buildly Labs
-- **buildly_test_connection** - Test Buildly Labs API connection
-- **buildly_get_issues** - Fetch your Buildly issues
-- **buildly_get_products** - Fetch your Buildly products ## Development
-
-### Testing Standalone
-```bash
-# Run test server
-python test_server.py
-
-# Run test suite
-python test_client.py
-
-# Test with Docker
-docker-compose -f docker-compose.test.yml up
-```
-
-### Integration Testing
-```bash
-# Test plugin mode
-pip install -e .
-# Add to BabbleBeaver and test
-
-# Test microservice mode
-docker-compose -f docker-compose.prod.yml up -d
-curl http://localhost:8001/agent/mcp/tools
-```
-
-This project follows Buildly's development standards:
-
-- **Documentation**: All changes documented in `/devdocs` with summaries and reuse notes
-- **API Documentation**: OpenAPI/Swagger specs for all endpoints  
-- **Code Standards**: Python type hints, async/await patterns, Pydantic models
-- **Testing**: Comprehensive test coverage with pytest
-- **Architecture**: Clean separation of concerns, dependency injection via FastAPI
-- **Security**: Repository allow-lists, environment-based configuration, GitHub App authentication
-- **Deployment**: Both plugin and microservice patterns supportednagement and documentation tools.
-
-## What It Does
-
-The agent serves as an intelligent bridge between code changes, project management, and documentation by:
-
-1. **AI Chat Interface** - Provides conversational AI powered by Gemini or Ollama
-2. **Development Automation** - Executes specialized tools for common dev tasks
-3. **Buildly Labs Integration** - Automatically syncs tasks and project management
-4. **Smart Documentation** - Auto-updates `/devdocs` with change summaries and reuse notes
-5. **Git Operations** - Handles PR creation and repository management
-
-## Key Features
-
-### Multi-LLM Support
-- **Gemini Integration** - Google's AI models for production use
-- **Ollama Support** - Local/self-hosted models for development
-- **Provider Switching** - Runtime selection between AI providers
-
-### Development Tools
-- **DevDocs Tool** - Maintains developer documentation with automated summaries
-- **Labs Sync Tool** - Creates/updates tasks in Buildly Labs linked to repos/PRs  
-- **Git Operations** - Automated pull request creation and management
-
-### API Endpoints
-- `POST /agent/chat` - Conversational AI interface
-- `GET /agent/mcp/tools` - Discover available development tools
-- `POST /agent/mcp/invoke` - Direct tool execution
-
-## Typical Workflow
-
-A developer can interact with the agent naturally:
+## Architecture
 
 ```
-User: "Refactor the user service, update devdocs, and create a Labs task"
-
-Agent: 
-1. Analyzes the refactoring request using LLM reasoning
-2. Calls update_devdocs tool to document changes  
-3. Calls labs_upsert_task to create/update task in Buildly Labs
-4. Creates PR via create_pr tool
-5. Returns summary of actions taken
+External MCP Client
+  ├── GitHub Copilot (Claude / GPT-4o / etc.)
+  ├── Copilot CLI + Ollama (DeepSeek, Llama, etc.)
+  └── Claude Desktop / Cursor / any MCP client
+          │
+          │ stdio (MCP JSON-RPC)
+          ▼
+  mcp_server_stdio.py  ←── thin launcher
+          │
+          ▼
+  bb_agent_manager/server.py
+          │
+    ┌─────┴──────────────────────────────┐
+    │                                     │
+    ▼                                     ▼
+  Tools (20+)                        Memory (buildly_memory/)
+    devdocs_*                            project_overview.md
+    buildly_labs_*                       architecture.md
+    buildly_workflow_*                   current_focus.md
+    buildly_env_*                        conventions.md
+    memory_*                             decisions/
+                                         sessions/
 ```
 
-## Project Structure
+---
+
+## Buildly Memory
+
+The memory system is the primary feature that makes this server valuable across sessions.
+
+### Layer 1 — Markdown memory (default)
 
 ```
-bb-agent-manager/
-├─ pyproject.toml
-├─ README.md
-├─ devdocs/                # Developer documentation
-├─ .github/
-│  └─ prompts/            # AI assistant prompts
-├─ bb_agent_manager/
-│  ├─ __init__.py
-│  ├─ config.py           # Environment configuration
-│  ├─ plugin.py           # BabbleBeaver registration
-│  ├─ router.py           # FastAPI routes for /agent
-│  ├─ orchestrator.py     # Agent orchestration & tool dispatch
-│  ├─ llm/
-│  │  ├─ __init__.py
-│  │  ├─ base.py          # LLM provider abstraction
-│  │  ├─ gemini.py        # Google Gemini integration
-│  │  ├─ ollama.py        # Ollama local model support
-│  │  └─ router.py        # Provider selection logic
-│  ├─ tools/
-│  │  ├─ __init__.py
-│  │  ├─ devdocs.py       # Documentation automation
-│  │  ├─ labs_sync.py     # Buildly Labs integration
-│  │  ├─ git_ops.py       # Git/GitHub operations
-│  │  └─ test_ops.py      # Test automation tools
-│  └─ mcp/
-│     ├─ __init__.py
-│     └─ server.py        # MCP-compatible tool server
-└─ tests/
-   └─ test_smoke.py
+buildly_memory/
+  project_overview.md    ← what this project is
+  architecture.md        ← how it's built
+  environments.md        ← environment config
+  conventions.md         ← coding standards + patterns
+  current_focus.md       ← what's being worked on now
+  release_notes.md       ← version history
+  decisions/             ← one file per architecture decision
+  features/              ← one file per feature/epic
+  issues/                ← tracked issues
+  sessions/              ← session notes
 ```
 
-## Installation & Setup
+Everything is human-readable and Git-tracked. No hidden state.
 
-BB Agent Manager supports two deployment modes:
+### Layer 2 — Org memory (cross-project)
 
-### 🔌 Plugin Mode (Embedded)
-**Best for**: Development, simple deployments, single-node setups
+Promoted patterns and decisions live at `~/.buildly/memory/{project}/`.
+Use `memory_promote_to_org_memory` to share across projects.
 
-#### Option A: Entry-point Auto-load (Recommended)
+### Why this matters
+
+Without memory, every AI session starts from zero. With Buildly Memory:
+- The AI knows the project architecture without re-reading the codebase
+- Decisions are captured and searchable
+- Sessions build on each other
+- Patterns propagate across projects
+
+---
+
+## Quick start
+
+### 1. Install
 
 ```bash
-# Install in BabbleBeaver's environment
-pip install bb-agent-manager @ git+ssh://git@github.com/Buildly-Labs/bb-agent-manager.git
-```
-
-In BabbleBeaver startup, add the generic module loader:
-
-```python
-# in babblebeaver/main.py
-import pkg_resources
-
-for ep in pkg_resources.iter_entry_points(group="babblebeaver.modules"):
-    try:
-        register_fn = ep.load()
-        register_fn(app, {})
-    except Exception as e:
-        print(f"[BB] Failed to load module {ep.name}: {e}")
-```
-
-#### Option B: Explicit Import
-
-```python
-# babblebeaver/main.py  
-from bb_agent_manager import register as register_bb_agent
-register_bb_agent(app, {})
-```
-
-### 🚀 Microservice Mode (Independent)
-**Best for**: Production, scaling, cloud deployments, isolation
-
-#### Quick Start with Docker Compose
-
-```bash
-# Clone and setup
-git clone https://github.com/Buildly-Labs/bb-agent-manager.git
+git clone https://github.com/buildly-release/bb-agent-manager.git
 cd bb-agent-manager
+pip install -e .
+```
+
+### 2. Configure
+
+```bash
 cp .env.example .env
-# Edit .env with your API keys
-
-# Deploy as microservices
-docker-compose -f docker-compose.prod.yml up -d
+# Edit .env — set LABS_BASE_URL, LABS_API_TOKEN, BUILDLY_PRODUCT_UUID
 ```
 
-**Access Points:**
-- BabbleBeaver: `http://localhost:8000`
-- BB Agent Manager: `http://localhost:8001`
-- Combined via Nginx: `http://localhost` (optional)
-
-#### Production Deployment
+### 3. Run
 
 ```bash
-# Build production image
-docker build -f Dockerfile.prod -t bb-agent-manager:prod .
-
-# Run independently
-docker run -d \
-  --name bb-agent-manager \
-  -p 8001:8000 \
-  -e GEMINI_API_KEY=your_key \
-  -e LABS_API_TOKEN=your_token \
-  --restart unless-stopped \
-  bb-agent-manager:prod
+python mcp_server_stdio.py
+# or
+buildly-mcp
 ```
 
-> 📖 **See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for comprehensive deployment options including Kubernetes, monitoring, and BabbleBeaver integration patterns.**
+### 4. Connect your client
 
-## Configuration
+See usage modes below.
 
-Required environment variables:
+---
 
-```bash
-# Buildly Labs Integration
-LABS_BASE_URL=https://labs.buildly.io/api
-LABS_API_TOKEN=your_labs_token
+## Usage modes
 
-# AI Provider Settings
-BB_AM_DEFAULT_PROVIDER=gemini  # or "ollama"
-GEMINI_API_KEY=your_gemini_key
-GEMINI_MODEL=gemini-1.5-pro
+### Mode 1 — GitHub Copilot + MCP
 
-# Ollama (for local models)
-OLLAMA_BASE_URL=http://localhost:11434/v1
-OLLAMA_MODEL=llama3.1:8b
+Add to `.vscode/mcp.json` (or global MCP config):
 
-# GitHub Integration
-GITHUB_TOKEN=ghp_your_github_token
-
-# Plugin Configuration
-BB_AM_MOUNT_PATH=/agent
-```
-
-## Docker Compose Example
-
-### Development/Testing
-```yaml
-# docker-compose.test.yml
-services:
-  bb-agent-test:
-    build: .
-    ports:
-      - "8001:8000"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - LABS_API_TOKEN=${LABS_API_TOKEN}
-    volumes:
-      - ./test_server.py:/app/main.py
-
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-```
-
-### Production Microservices
-```yaml
-# docker-compose.prod.yml - Full setup with BabbleBeaver
-services:
-  babblebeaver:
-    build: ./babblebeaver
-    ports:
-      - "8000:8000"
-    depends_on:
-      - bb-agent-manager
-
-  bb-agent-manager:
-    build:
-      dockerfile: Dockerfile.prod
-    ports:
-      - "8001:8000"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - LABS_API_TOKEN=${LABS_API_TOKEN}
-    restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-```
-
-Run with: `docker-compose -f docker-compose.prod.yml up -d`
-
-## API Usage
-
-### Chat Interface
-```bash
-POST /agent/chat
+```json
 {
-  "provider": "gemini",
-  "messages": [
-    {"role":"system","content":"You are the Buildly Agent. Use tools to update devdocs & Labs."},
-    {"role":"user","content":"Refactor user service; update devdocs and create a Labs task."}
-  ]
-}
-```
-
-### Tool Discovery & Invocation
-```bash
-# Discover available tools
-GET /agent/mcp/tools
-
-# Invoke specific tool
-POST /agent/mcp/invoke 
-{
-  "name": "update_devdocs", 
-  "arguments": {
-    "files": ["src/user_service.py"],
-    "summary": "Refactored user authentication logic",
-    "component_reuse_notes": "Extract auth middleware for reuse"
+  "servers": {
+    "buildly": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["${workspaceFolder}/mcp_server_stdio.py"],
+      "env": {
+        "LABS_BASE_URL": "https://labs-api.buildly.io",
+        "BUILDLY_PRODUCT_UUID": "your-product-uuid"
+      }
+    }
   }
 }
 ```
 
-## Development Standards
+Or using the installed script:
 
-This project follows Buildly's development practices:
+```json
+{
+  "servers": {
+    "buildly": {
+      "type": "stdio",
+      "command": "buildly-mcp"
+    }
+  }
+}
+```
 
-- **Documentation**: All changes documented in `/devdocs` with summaries and reuse notes
-- **API Documentation**: OpenAPI/Swagger specs for all endpoints  
-- **Code Standards**: Python type hints, async/await patterns, Pydantic models
-- **Testing**: Comprehensive test coverage with pytest
-- **Architecture**: Clean separation of concerns, dependency injection via FastAPI
-- **Security**: Repository allow-lists, environment-based configuration, GitHub App authentication
+### Mode 2 — Copilot CLI + Ollama (local DeepSeek)
 
-## Contributing
+Ollama runs local models at `http://localhost:11434` with an OpenAI-compatible endpoint.
 
-1. Fork the repository
-2. Create a feature branch
-3. Make changes following Buildly coding standards
-4. Update `/devdocs` with change summary and component reuse notes
-5. Add/update tests as needed
-6. Test in both plugin and microservice modes
-7. Submit pull request with clear description
+```bash
+# Start Ollama with DeepSeek
+ollama run deepseek-coder-v2:16b
 
-### Development Resources
-- **Integration Guide**: [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) - Detailed setup and testing
-- **Deployment Guide**: [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Production deployment patterns
-- **AI Guidelines**: [.github/prompts/buildly-guidelines.md](.github/prompts/buildly-guidelines.md) - Buildly development practices
+# Connect Copilot CLI (BYOK mode)
+gh copilot config set model ollama/deepseek-coder-v2:16b
+gh copilot config set endpoint http://localhost:11434/v1
+```
 
-## License
+The MCP server stays the same — only the model changes in the client.
 
-Private - Buildly Labs Internal Use
+### Mode 3 — Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "buildly": {
+      "command": "python",
+      "args": ["/absolute/path/to/mcp_server_stdio.py"],
+      "env": {
+        "LABS_BASE_URL": "https://labs-api.buildly.io",
+        "LABS_API_TOKEN": "your-token"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Tool reference
+
+### DevDocs tools
+
+| Tool | Description |
+|------|-------------|
+| `devdocs_write` | Write or update a documentation file |
+| `devdocs_read` | Read a documentation file |
+| `devdocs_list` | List all documentation files |
+
+### Buildly Labs tools
+
+| Tool | Description |
+|------|-------------|
+| `buildly_login` | Authenticate with Buildly Labs |
+| `buildly_test_connection` | Test API connectivity |
+| `buildly_get_products` | List products |
+| `buildly_get_issues` | Fetch issues (filterable by product/status) |
+| `buildly_get_features` | Fetch features/epics |
+| `buildly_get_current_work_context` | Combined snapshot: active issues + milestones |
+| `buildly_update_issue_status` | Update an issue's status |
+
+### Workflow tools
+
+| Tool | Description |
+|------|-------------|
+| `buildly_definition_of_done_check` | Run a DoD checklist |
+| `buildly_create_devdocs_summary` | Write a structured devdocs entry |
+| `buildly_release_summary` | Summarise recent changes |
+
+### Environment tools
+
+| Tool | Description |
+|------|-------------|
+| `buildly_get_environment_context` | Current env name, product, org config |
+| `buildly_get_repo_context` | Git branch, recent commits, dirty state |
+
+### Memory tools
+
+| Tool | Description |
+|------|-------------|
+| `memory_get_project_summary` | Overview + focus + architecture from memory |
+| `memory_search_current_project` | Full-text search in `buildly_memory/` |
+| `memory_search_related_projects` | Search org-level memory (`~/.buildly/memory/`) |
+| `memory_write_session_note` | Persist a session note |
+| `memory_capture_decision` | Record an architectural decision |
+| `memory_capture_pattern` | Append a reusable pattern to conventions |
+| `memory_get_recent_work` | Recent session notes |
+| `memory_get_environment_context` | Read `buildly_memory/environments.md` |
+| `memory_promote_to_org_memory` | Share memory to `~/.buildly/memory/` |
+| `memory_rebuild_index` | Regenerate `buildly_memory/INDEX.md` |
+
+### MCP Resources
+
+| URI | Content |
+|-----|---------|
+| `memory://current-project/overview` | `buildly_memory/project_overview.md` |
+| `memory://current-project/architecture` | `buildly_memory/architecture.md` |
+| `memory://current-project/current-focus` | `buildly_memory/current_focus.md` |
+| `memory://buildly/standards` | `buildly_memory/conventions.md` |
+| `memory://related-projects/{name}` | Org memory for a related project |
+
+---
+
+## The Buildly Way
+
+1. **Check context before coding** — always start with `buildly_get_current_work_context`
+2. **Document as you go** — call `buildly_create_devdocs_summary` after meaningful changes
+3. **Capture decisions** — use `memory_capture_decision` for architecture choices
+4. **Small changes** — one concern per PR, release-sized increments
+5. **Human in the loop** — draft PRs, no auto-merges
+6. **Never commit secrets** — credentials stay in env vars
+
+---
+
+## Development
+
+```bash
+# Install with dev dependencies
+pip install -e .
+pip install pytest pytest-asyncio httpx
+
+# Run tests
+pytest tests/ -v
+
+# Start the MCP server
+python mcp_server_stdio.py
+```
+
+## Project structure
+
+```
+mcp_server_stdio.py              ← thin launcher (use this)
+bb_agent_manager/
+  server.py                      ← MCP server core
+  config.py                      ← BuildlySettings
+  mcp_server_stdio.py            ← console script entry point
+  tools/
+    devdocs.py                   ← devdocs_* tools
+    buildly_labs.py              ← Buildly Labs API tools
+    buildly_workflow.py          ← workflow tools
+    buildly_env.py               ← environment + repo tools
+    memory_tools.py              ← memory_* tools + resources
+  memory/
+    memory_service.py            ← abstract interface
+    markdown_memory.py           ← file-based implementation
+buildly_memory/                  ← persistent project memory (Git-tracked)
+devdocs/                         ← developer documentation
+.env.example                     ← environment config template
+.vscode/mcp.json                 ← VS Code MCP config example
+```
