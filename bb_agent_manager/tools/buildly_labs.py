@@ -69,6 +69,83 @@ async def _post(url: str, payload: dict, token: str | None = None) -> dict[str, 
         return {"error": str(exc)}
 
 
+def _extract_items(payload: Any) -> list[dict[str, Any]]:
+    """Normalize an API payload into a list of mapping items."""
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+
+    if isinstance(payload, dict):
+        for key in ("results", "items", "data", "products", "tasks"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+
+    return []
+
+
+def _priority_sort_key(task: dict[str, Any]) -> tuple[int, Any, str]:
+    """Sort higher priority work first while tolerating string labels."""
+    priority = task.get("priority", 999)
+
+    if isinstance(priority, (int, float)):
+        return (0, priority, str(task.get("title", "")))
+
+    if isinstance(priority, str):
+        label = priority.strip().lower()
+        rank_map = {
+            "critical": 0,
+            "urgent": 0,
+            "high": 1,
+            "medium": 2,
+            "normal": 3,
+            "low": 4,
+        }
+        if label.isdigit():
+            return (0, int(label), str(task.get("title", "")))
+        return (1, rank_map.get(label, 999), str(task.get("title", "")))
+
+    return (2, 999, str(task.get("title", "")))
+
+
+async def _resolve_product_context(
+    base: str,
+    token: str | None,
+    arguments: dict,
+    settings: "BuildlySettings",
+) -> tuple[int | None, dict[str, Any] | None, str | None]:
+    """Resolve a product ID and metadata from explicit args or BUILDLY_PRODUCT_UUID."""
+    product_id = arguments.get("product_id")
+    if product_id is not None:
+        try:
+            return int(product_id), None, None
+        except (TypeError, ValueError):
+            return None, None, f"Invalid product_id: {product_id!r}"
+
+    product_uuid = arguments.get("product_uuid") or settings.buildly_product_uuid
+    if not product_uuid:
+        return None, None, "No product selected. Set BUILDLY_PRODUCT_UUID or pass product_id/product_uuid."
+
+    products_result = await _get(f"{base}/products", token, {"limit": 200, "offset": 0})
+    if "error" in products_result:
+        return None, None, f"Failed to resolve product: {products_result['error']}"
+
+    products = _extract_items(products_result.get("data"))
+    for product in products:
+        candidate_uuid = str(
+            product.get("uuid")
+            or product.get("product_uuid")
+            or product.get("id")
+            or ""
+        )
+        if candidate_uuid == str(product_uuid):
+            try:
+                return int(product["id"]), product, None
+            except (KeyError, TypeError, ValueError):
+                return None, None, f"Product matched {product_uuid!r} but had no numeric id"
+
+    return None, None, f"Product not found for BUILDLY_PRODUCT_UUID={product_uuid!r}"
+
+
 # ---------------------------------------------------------------------------
 # Tool schemas
 # ---------------------------------------------------------------------------
@@ -129,6 +206,23 @@ TOOLS: list[Tool] = [
                 "access_token": {"type": "string", "description": "JWT token (optional if stored)"},
                 "product_uuid": {"type": "string", "description": "Product UUID (uses env BUILDLY_PRODUCT_UUID if omitted)"},
                 "limit": {"type": "integer", "description": "Max results (default 50)"},
+            },
+        },
+    ),
+    Tool(
+        name="buildly_get_tasks",
+        description="Fetch prioritized features, issues, and punchlist items for a product.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "access_token": {"type": "string", "description": "JWT token (optional if stored)"},
+                "product_id": {"type": "integer", "description": "Product ID (optional if BUILDLY_PRODUCT_UUID is set)"},
+                "product_uuid": {"type": "string", "description": "Product UUID (optional if BUILDLY_PRODUCT_UUID is set)"},
+                "task_types": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["feature", "issue", "punchlist"]},
+                    "description": "Optional filter for task types",
+                },
             },
         },
     ),
@@ -211,6 +305,51 @@ async def handle(name: str, arguments: dict, settings: "BuildlySettings") -> dic
         if product_uuid:
             params["product_uuid"] = product_uuid
         return await _get(f"{base}/features", token, params)
+
+    if name == "buildly_get_tasks":
+        product_id, product, resolution_error = await _resolve_product_context(base, token, arguments, settings)
+        if resolution_error:
+            return {"error": resolution_error}
+
+        if product_id is None:
+            return {"error": "Unable to resolve a product for buildly_get_tasks."}
+
+        params: dict[str, Any] = {}
+        task_types = arguments.get("task_types")
+        if task_types:
+            params["types"] = ",".join(task_types)
+
+        tasks_result = await _get(f"{base}/products/{product_id}/tasks", token, params)
+        if "error" in tasks_result:
+            return tasks_result
+
+        tasks = _extract_items(tasks_result.get("data"))
+        organized: dict[str, list[dict[str, Any]]] = {
+            "features": [],
+            "issues": [],
+            "punchlist": [],
+        }
+
+        for task in tasks:
+            task_type = str(task.get("type", task.get("task_type", ""))).lower()
+            if task_type == "feature":
+                organized["features"].append(task)
+            elif task_type in {"issue", "bug"}:
+                organized["issues"].append(task)
+            elif task_type in {"punchlist", "task"}:
+                organized["punchlist"].append(task)
+
+        for category in organized.values():
+            category.sort(key=_priority_sort_key)
+
+        return {
+            "status": "ok",
+            "product_id": product_id,
+            "product_name": product.get("name") if product else None,
+            "product_uuid": (product.get("uuid") or product.get("product_uuid")) if product else (arguments.get("product_uuid") or settings.buildly_product_uuid),
+            "total": len(tasks),
+            "tasks": organized,
+        }
 
     if name == "buildly_get_current_work_context":
         product_uuid = arguments.get("product_uuid") or settings.buildly_product_uuid

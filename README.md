@@ -214,8 +214,33 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `buildly_get_products` | List products |
 | `buildly_get_issues` | Fetch issues (filterable by product/status) |
 | `buildly_get_features` | Fetch features/epics |
+| `buildly_get_tasks` | Fetch features, issues, and punchlist items |
 | `buildly_get_current_work_context` | Combined snapshot: active issues + milestones |
 | `buildly_update_issue_status` | Update an issue's status |
+
+### Project binding
+
+Recommended workflow for a new session:
+
+1. Log in with `buildly_login` or provide `LABS_API_TOKEN`.
+2. Use `buildly_get_products` to choose the Buildly project you are working on.
+3. Use `buildly_get_repo_context` to confirm the repository the server is attached to.
+4. Call `buildly_remember_project_link` to persist the Buildly project + repo mapping.
+5. Call `buildly_get_project_link` later to restore that link for the same repo.
+
+### Docker
+
+Build and run the stdio server locally in Docker:
+
+```bash
+docker compose up --build buildly-agent
+```
+
+Then test the container with the helper script:
+
+```bash
+./scripts/test_mcp_docker.sh
+```
 
 ### Workflow tools
 

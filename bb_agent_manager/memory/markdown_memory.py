@@ -11,6 +11,7 @@ File layout:
         environments.md
         conventions.md
         current_focus.md
+        project_links.md
         release_notes.md
         decisions/       ← one file per architectural decision
         features/        ← one file per feature/epic
@@ -53,6 +54,7 @@ class MarkdownMemory(MemoryService):
             "environments.md": _STUB_ENVS,
             "conventions.md": _STUB_CONVENTIONS,
             "current_focus.md": _STUB_FOCUS,
+            "project_links.md": _STUB_PROJECT_LINKS,
             "release_notes.md": _STUB_RELEASE_NOTES,
         }
         for filename, stub in stubs.items():
@@ -319,4 +321,16 @@ _STUB_RELEASE_NOTES = """\
 ## Unreleased
 
 - Initial setup
+"""
+
+_STUB_PROJECT_LINKS = """\
+# Project Links
+
+> Buildly project-to-repository connections live here.
+
+<!-- buildly-project-links:begin -->
+{
+    "entries": []
+}
+<!-- buildly-project-links:end -->
 """

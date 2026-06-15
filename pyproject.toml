@@ -17,9 +17,6 @@ dependencies = [
 [project.scripts]
 buildly-mcp = "bb_agent_manager.mcp_server_stdio:main"
 
-[project.entry-points."babblebeaver.modules"]
-bb_agent_manager = "bb_agent_manager.plugin:register"
-
 [tool.setuptools.packages.find]
 include = ["bb_agent_manager*"]
 

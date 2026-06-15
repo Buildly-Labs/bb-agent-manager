@@ -10,9 +10,14 @@ services:
     tty: true
     environment:
       - LABS_BASE_URL=https://labs-api.buildly.io
+      - BUILDLY_ENV_NAME=local
+      - BUILDLY_PRODUCT_UUID=
+      - BUILDLY_ORG_UUID=
+      - LABS_API_TOKEN=
     volumes:
       - ./devdocs:/app/devdocs
-    command: python3 buildly_mcp_server.py
+      - ./buildly_memory:/app/buildly_memory
+    command: python mcp_server_stdio.py
     restart: unless-stopped
 
 networks:
