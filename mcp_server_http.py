@@ -28,6 +28,7 @@ from starlette.routing import Mount, Route
 from mcp.server.sse import SseServerTransport
 
 from bb_agent_manager.server import server, ALL_TOOLS
+from bb_agent_manager.oauth import manager as oauth_manager
 
 logging.basicConfig(
     stream=sys.stderr,
@@ -49,8 +50,39 @@ async def health(request):
         "status": "ok",
         "server": "buildly-mcp",
         "transport": "sse",
+        "oauth_enabled": oauth_manager.enabled,
         "tools": [t.name for t in ALL_TOOLS],
     })
+
+
+async def oauth_callback(request):
+    """OAuth2 redirect target: exchange the code and bind token to the session."""
+    params = request.query_params
+    error = params.get("error")
+    if error:
+        return _html(f"Login failed: {error}", ok=False)
+    code, state = params.get("code"), params.get("state")
+    if not code or not state:
+        return _html("Missing code/state in callback.", ok=False)
+    ok, msg = await oauth_manager.exchange_code(code, state)
+    if ok:
+        return _html("You're logged in to Buildly Labs. You can close this tab "
+                     "and return to your editor.")
+    return _html(f"Login could not be completed: {msg}", ok=False)
+
+
+def _html(message: str, ok: bool = True):
+    from starlette.responses import HTMLResponse
+    color = "#16a34a" if ok else "#dc2626"
+    icon = "✓" if ok else "✗"
+    return HTMLResponse(
+        f"""<!doctype html><html><head><meta charset=utf-8><title>Buildly MCP</title>
+        <style>body{{font-family:system-ui;background:#0b1120;color:#e2e8f0;display:grid;
+        place-items:center;height:100vh;margin:0}}.c{{text-align:center;padding:2rem}}
+        .i{{font-size:3rem;color:{color}}}</style></head>
+        <body><div class=c><div class=i>{icon}</div><h2>{message}</h2></div></body></html>""",
+        status_code=200 if ok else 400,
+    )
 
 
 app = Starlette(
@@ -58,6 +90,7 @@ app = Starlette(
     routes=[
         Route("/sse", endpoint=handle_sse),
         Route("/health", endpoint=health),
+        Route("/oauth/callback", endpoint=oauth_callback),
         Mount("/messages/", app=sse.handle_post_message),
     ],
 )

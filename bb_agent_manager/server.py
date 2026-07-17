@@ -66,6 +66,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     settings = BuildlySettings()
     handler = _TOOL_ROUTERS.get(name)
 
+    # Bind a stable per-connection session id so tools can resolve
+    # per-user OAuth tokens (see bb_agent_manager.oauth).
+    try:
+        session = server.request_context.session
+        arguments = {**arguments, "_session_id": f"sess-{id(session):x}"}
+    except LookupError:
+        pass
+
     if handler is None:
         result = {"error": f"Unknown tool: {name}", "available_tools": [t.name for t in ALL_TOOLS]}
     else:

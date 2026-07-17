@@ -17,6 +17,12 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - LABS_BASE_URL=https://labs.buildly.io
+      # OAuth login (per-user tokens). Register a confidential client at
+      # https://labs.buildly.io/admin/oauth-clients/create with redirect URI
+      # http://bb-agent.home/oauth/callback then set these (e.g. in .env):
+      - LABS_OAUTH_CLIENT_ID=${LABS_OAUTH_CLIENT_ID:-}
+      - LABS_OAUTH_CLIENT_SECRET=${LABS_OAUTH_CLIENT_SECRET:-}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://bb-agent.home}
     ports:
       - "8765:8000"          # direct LAN access: http://<host-ip>:8765/sse
     volumes:

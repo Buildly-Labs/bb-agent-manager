@@ -31,9 +31,14 @@ _TOKEN_FILE = Path.home() / ".buildly" / "token"
 # ---------------------------------------------------------------------------
 
 def _get_token(settings: "BuildlySettings", arguments: dict) -> str | None:
-    """Resolve API token from argument -> env var -> token file."""
+    """Resolve token: explicit arg -> per-session OAuth -> env -> token file."""
     if arguments.get("access_token"):
         return arguments["access_token"]
+    # per-user OAuth token bound to this MCP session
+    from bb_agent_manager.oauth import manager as _oauth
+    session_token = _oauth.get_token(arguments.get("_session_id"))
+    if session_token:
+        return session_token
     if settings.labs_api_token:
         return settings.labs_api_token
     if _TOKEN_FILE.exists():
@@ -100,17 +105,31 @@ TOOLS: list[Tool] = [
     Tool(
         name="buildly_login",
         description=(
-            "Store a Buildly Labs API token locally (~/.buildly/token) for later calls. "
-            "Create the token at https://labs.buildly.io/settings/api-keys and pass it as 'api_token'. "
-            "(The new labs.buildly.io API uses API tokens / OAuth2, not username+password.)"
+            "Log in to Buildly Labs with your own account via OAuth. Returns a URL — "
+            "open it in a browser, approve, and your personal access token is bound to "
+            "this session automatically (no copy-paste). Falls back to accepting a manual "
+            "API token if OAuth is not configured on the server."
         ),
         inputSchema={
             "type": "object",
             "properties": {
-                "api_token": {"type": "string", "description": "API token from labs.buildly.io/settings/api-keys"},
+                "api_token": {
+                    "type": "string",
+                    "description": "Optional: manual API token (from labs.buildly.io/settings/api-keys) "
+                                   "instead of the OAuth browser flow.",
+                },
             },
-            "required": ["api_token"],
         },
+    ),
+    Tool(
+        name="buildly_logout",
+        description="Clear the Buildly access token bound to this session.",
+        inputSchema={"type": "object", "properties": {}},
+    ),
+    Tool(
+        name="buildly_auth_status",
+        description="Check whether this session is authenticated with Buildly Labs.",
+        inputSchema={"type": "object", "properties": {}},
     ),
     Tool(
         name="buildly_get_products",
@@ -221,12 +240,22 @@ async def handle(name: str, arguments: dict, settings: "BuildlySettings") -> dic
         return await _test_connection(base.rstrip("/"))
 
     if name == "buildly_login":
-        return _save_token(arguments["api_token"])
+        return _login(arguments)
+
+    if name == "buildly_logout":
+        from bb_agent_manager.oauth import manager as _oauth
+        cleared = _oauth.logout(arguments.get("_session_id"))
+        return {"status": "ok", "message": "Logged out." if cleared else "No active session token."}
+
+    if name == "buildly_auth_status":
+        token = _get_token(settings, arguments)
+        return {"status": "ok", "authenticated": bool(token),
+                "source": _token_source(settings, arguments) if token else None}
 
     token = _get_token(settings, arguments)
     if token is None:
-        return {"error": "No API token. Run buildly_login with a token from "
-                         "labs.buildly.io/settings/api-keys, or set LABS_API_TOKEN."}
+        return {"error": "Not authenticated. Call buildly_login to log in with your "
+                         "Buildly account (OAuth), or set LABS_API_TOKEN."}
 
     if name == "buildly_get_products":
         return await _get(f"{api}/products", token, {
@@ -301,11 +330,50 @@ async def _test_connection(base: str) -> dict:
         return {"status": "unreachable", "error": str(exc), "url": base}
 
 
-def _save_token(token: str) -> dict:
-    _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _TOKEN_FILE.write_text(token.strip(), encoding="utf-8")
+def _login(arguments: dict) -> dict:
+    """Start OAuth browser login, or store a manual API token if provided."""
+    from bb_agent_manager.oauth import manager as _oauth
+
+    # manual token path (fallback / power users)
+    if arguments.get("api_token"):
+        token = arguments["api_token"].strip()
+        _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _TOKEN_FILE.write_text(token, encoding="utf-8")
+        return {"status": "ok", "method": "manual_token",
+                "message": "API token saved to ~/.buildly/token",
+                "token_preview": token[:8] + "..."}
+
+    if not _oauth.enabled:
+        return {"status": "error", "method": "oauth",
+                "message": "OAuth is not configured on this server "
+                           "(set LABS_OAUTH_CLIENT_ID/SECRET). "
+                           "Alternatively call buildly_login with 'api_token' from "
+                           "labs.buildly.io/settings/api-keys."}
+
+    session_id = arguments.get("_session_id")
+    if not session_id:
+        return {"status": "error", "message": "No session context; cannot bind login."}
+
+    url = _oauth.build_authorize_url(session_id)
     return {
         "status": "ok",
-        "message": "API token saved to ~/.buildly/token",
-        "token_preview": token[:8] + "...",
+        "method": "oauth",
+        "action_required": "open_url",
+        "authorize_url": url,
+        "message": "Open this URL in your browser, log in, and approve. "
+                   "Your token will be bound to this session automatically. "
+                   "Then retry your request (or call buildly_auth_status).",
     }
+
+
+def _token_source(settings: "BuildlySettings", arguments: dict) -> str:
+    from bb_agent_manager.oauth import manager as _oauth
+    if arguments.get("access_token"):
+        return "argument"
+    if _oauth.get_token(arguments.get("_session_id")):
+        return "oauth_session"
+    if settings.labs_api_token:
+        return "env"
+    if _TOKEN_FILE.exists():
+        return "token_file"
+    return "none"
