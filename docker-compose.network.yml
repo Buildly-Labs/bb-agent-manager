@@ -1,0 +1,49 @@
+# Network (LAN-accessible) MCP server over SSE/HTTP.
+# Exposes the Buildly MCP server so Claude, VS Code, Codex on any machine can
+# connect remotely at http://bb-agent.home/sse (via Traefik) or http://<host>:8765/sse.
+#
+#   docker compose -f docker-compose.network.yml up -d --build
+#
+services:
+  buildly-agent-http:
+    build:
+      context: .
+      dockerfile: Dockerfile.http
+    image: bb-agent-http:latest
+    container_name: buildly-agent-http
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LABS_BASE_URL=https://labs-api.buildly.io
+    ports:
+      - "8765:8000"          # direct LAN access: http://<host-ip>:8765/sse
+    volumes:
+      - ./devdocs:/app/devdocs
+      - ./buildly_memory:/app/buildly_memory
+    command: python mcp_server_http.py
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Traefik route so it's reachable at http://bb-agent.home (port 80)
+      - "traefik.enable=true"
+      - "traefik.http.routers.bb-agent.rule=Host(`bb-agent.home`)"
+      - "traefik.http.routers.bb-agent.entrypoints=web"
+      - "traefik.http.services.bb-agent.loadbalancer.server.port=8000"
+      - "traefik.docker.network=dashboard_family_network"
+    networks:
+      - bbnet
+      - dashboard_family_network
+
+networks:
+  bbnet:
+    name: bb-agent-network
+    external: true
+  dashboard_family_network:
+    external: true

@@ -1,0 +1,20 @@
+# Network variant: Buildly MCP server over SSE/HTTP for LAN-wide access.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+COPY . .
+
+# Install the package (mcp, httpx, pydantic via pyproject) plus the
+# ASGI stack needed for the SSE transport.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir . \
+    && pip install --no-cache-dir "uvicorn[standard]>=0.24" "starlette>=0.37" "python-dotenv>=1.0"
+
+EXPOSE 8000
+
+CMD ["python", "mcp_server_http.py"]
