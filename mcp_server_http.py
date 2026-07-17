@@ -55,6 +55,18 @@ async def health(request):
     })
 
 
+async def index(request):
+    """Root: point stray browsers/clients at the real MCP endpoint."""
+    return JSONResponse({
+        "server": "buildly-mcp",
+        "transport": "sse",
+        "mcp_endpoint": "/sse",
+        "hint": "Configure your MCP client with the /sse URL, e.g. "
+                "http://bb-agent.home/sse",
+        "endpoints": ["/sse", "/health", "/oauth/callback"],
+    })
+
+
 async def oauth_callback(request):
     """OAuth2 redirect target: exchange the code and bind token to the session."""
     params = request.query_params
@@ -88,6 +100,7 @@ def _html(message: str, ok: bool = True):
 app = Starlette(
     debug=False,
     routes=[
+        Route("/", endpoint=index),
         Route("/sse", endpoint=handle_sse),
         Route("/health", endpoint=health),
         Route("/oauth/callback", endpoint=oauth_callback),
