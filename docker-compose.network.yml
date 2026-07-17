@@ -16,7 +16,7 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
-      - LABS_BASE_URL=https://labs-api.buildly.io
+      - LABS_BASE_URL=https://labs.buildly.io
     ports:
       - "8765:8000"          # direct LAN access: http://<host-ip>:8765/sse
     volumes:

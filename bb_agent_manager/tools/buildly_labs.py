@@ -1,11 +1,14 @@
 """
 Buildly Labs tools for the Buildly MCP Server.
 
-Provides authentication and data access for the Buildly Labs platform.
-Token is read from (in priority order):
+Targets the labs.buildly.io API (new HTMX frontend, /api/v1/*).
+
+Auth: the /api/v1 data endpoints accept an API token via the `X-API-Token`
+header (or `Authorization: Bearer <token>`). Create a token at
+https://labs.buildly.io/settings/api-keys and provide it via (priority order):
   1. The 'access_token' tool argument
   2. LABS_API_TOKEN environment variable
-  3. ~/.buildly/token file (written by buildly_login)
+  3. ~/.buildly/token file
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ _TOKEN_FILE = Path.home() / ".buildly" / "token"
 # ---------------------------------------------------------------------------
 
 def _get_token(settings: "BuildlySettings", arguments: dict) -> str | None:
-    """Resolve auth token from argument → env var → token file."""
+    """Resolve API token from argument -> env var -> token file."""
     if arguments.get("access_token"):
         return arguments["access_token"]
     if settings.labs_api_token:
@@ -39,15 +42,17 @@ def _get_token(settings: "BuildlySettings", arguments: dict) -> str | None:
 
 
 def _auth_headers(token: str | None) -> dict[str, str]:
-    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    """New API takes X-API-Token; also send Bearer for OAuth access tokens."""
+    headers = {"Accept": "application/json"}
     if token:
+        headers["X-API-Token"] = token
         headers["Authorization"] = f"Bearer {token}"
     return headers
 
 
 async def _get(url: str, token: str | None, params: dict | None = None) -> dict[str, Any]:
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             r = await client.get(url, headers=_auth_headers(token), params=params)
             r.raise_for_status()
             return {"status": "ok", "data": r.json()}
@@ -57,12 +62,13 @@ async def _get(url: str, token: str | None, params: dict | None = None) -> dict[
         return {"error": str(exc)}
 
 
-async def _post(url: str, payload: dict, token: str | None = None) -> dict[str, Any]:
+async def _send(url: str, method: str, token: str | None, payload: dict | None = None) -> dict[str, Any]:
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.post(url, json=payload, headers=_auth_headers(token))
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            r = await client.request(method, url, json=payload, headers=_auth_headers(token))
             r.raise_for_status()
-            return {"status": "ok", "data": r.json()}
+            ct = r.headers.get("content-type", "")
+            return {"status": "ok", "data": r.json() if "json" in ct else r.text[:500]}
     except httpx.HTTPStatusError as exc:
         return {"error": f"HTTP {exc.response.status_code}", "detail": exc.response.text[:500]}
     except Exception as exc:  # noqa: BLE001
@@ -73,77 +79,12 @@ def _extract_items(payload: Any) -> list[dict[str, Any]]:
     """Normalize an API payload into a list of mapping items."""
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, dict)]
-
     if isinstance(payload, dict):
-        for key in ("results", "items", "data", "products", "tasks"):
+        for key in ("results", "items", "data", "products", "backlog", "tasks"):
             value = payload.get(key)
             if isinstance(value, list):
                 return [item for item in value if isinstance(item, dict)]
-
     return []
-
-
-def _priority_sort_key(task: dict[str, Any]) -> tuple[int, Any, str]:
-    """Sort higher priority work first while tolerating string labels."""
-    priority = task.get("priority", 999)
-
-    if isinstance(priority, (int, float)):
-        return (0, priority, str(task.get("title", "")))
-
-    if isinstance(priority, str):
-        label = priority.strip().lower()
-        rank_map = {
-            "critical": 0,
-            "urgent": 0,
-            "high": 1,
-            "medium": 2,
-            "normal": 3,
-            "low": 4,
-        }
-        if label.isdigit():
-            return (0, int(label), str(task.get("title", "")))
-        return (1, rank_map.get(label, 999), str(task.get("title", "")))
-
-    return (2, 999, str(task.get("title", "")))
-
-
-async def _resolve_product_context(
-    base: str,
-    token: str | None,
-    arguments: dict,
-    settings: "BuildlySettings",
-) -> tuple[int | None, dict[str, Any] | None, str | None]:
-    """Resolve a product ID and metadata from explicit args or BUILDLY_PRODUCT_UUID."""
-    product_id = arguments.get("product_id")
-    if product_id is not None:
-        try:
-            return int(product_id), None, None
-        except (TypeError, ValueError):
-            return None, None, f"Invalid product_id: {product_id!r}"
-
-    product_uuid = arguments.get("product_uuid") or settings.buildly_product_uuid
-    if not product_uuid:
-        return None, None, "No product selected. Set BUILDLY_PRODUCT_UUID or pass product_id/product_uuid."
-
-    products_result = await _get(f"{base}/products", token, {"limit": 200, "offset": 0})
-    if "error" in products_result:
-        return None, None, f"Failed to resolve product: {products_result['error']}"
-
-    products = _extract_items(products_result.get("data"))
-    for product in products:
-        candidate_uuid = str(
-            product.get("uuid")
-            or product.get("product_uuid")
-            or product.get("id")
-            or ""
-        )
-        if candidate_uuid == str(product_uuid):
-            try:
-                return int(product["id"]), product, None
-            except (KeyError, TypeError, ValueError):
-                return None, None, f"Product matched {product_uuid!r} but had no numeric id"
-
-    return None, None, f"Product not found for BUILDLY_PRODUCT_UUID={product_uuid!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -153,31 +94,31 @@ async def _resolve_product_context(
 TOOLS: list[Tool] = [
     Tool(
         name="buildly_test_connection",
-        description="Test connectivity to the Buildly Labs API.",
+        description="Test connectivity to the Buildly Labs API (labs.buildly.io).",
         inputSchema={"type": "object", "properties": {}},
     ),
     Tool(
         name="buildly_login",
         description=(
-            "Authenticate with Buildly Labs. Stores the token locally at "
-            "~/.buildly/token so you don't need to pass it on every call."
+            "Store a Buildly Labs API token locally (~/.buildly/token) for later calls. "
+            "Create the token at https://labs.buildly.io/settings/api-keys and pass it as 'api_token'. "
+            "(The new labs.buildly.io API uses API tokens / OAuth2, not username+password.)"
         ),
         inputSchema={
             "type": "object",
             "properties": {
-                "username": {"type": "string", "description": "Buildly Labs username or email"},
-                "password": {"type": "string", "description": "Buildly Labs password"},
+                "api_token": {"type": "string", "description": "API token from labs.buildly.io/settings/api-keys"},
             },
-            "required": ["username", "password"],
+            "required": ["api_token"],
         },
     ),
     Tool(
         name="buildly_get_products",
-        description="List all products in your Buildly Labs organization.",
+        description="List products in your Buildly Labs organization.",
         inputSchema={
             "type": "object",
             "properties": {
-                "access_token": {"type": "string", "description": "JWT token (optional if stored)"},
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
                 "limit": {"type": "integer", "description": "Max results (default 50)"},
                 "offset": {"type": "integer", "description": "Pagination offset"},
             },
@@ -185,12 +126,12 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="buildly_get_issues",
-        description="Fetch backlog issues from Buildly Labs, optionally filtered by product.",
+        description="Fetch backlog items (issues) from Buildly Labs, optionally filtered by product/status.",
         inputSchema={
             "type": "object",
             "properties": {
-                "access_token": {"type": "string", "description": "JWT token (optional if stored)"},
-                "product_uuid": {"type": "string", "description": "Filter by product UUID"},
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
+                "product_id": {"type": "string", "description": "Filter by product id"},
                 "status": {"type": "string", "description": "Filter by status (e.g. 'in_progress')"},
                 "limit": {"type": "integer", "description": "Max results (default 50)"},
                 "offset": {"type": "integer", "description": "Pagination offset"},
@@ -199,61 +140,52 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="buildly_get_features",
-        description="Fetch features/epics from Buildly Labs for a product.",
+        description="Fetch backlog features/epics from Buildly Labs for a product.",
         inputSchema={
             "type": "object",
             "properties": {
-                "access_token": {"type": "string", "description": "JWT token (optional if stored)"},
-                "product_uuid": {"type": "string", "description": "Product UUID (uses env BUILDLY_PRODUCT_UUID if omitted)"},
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
+                "product_id": {"type": "string", "description": "Product id (uses env BUILDLY_PRODUCT_UUID if omitted)"},
                 "limit": {"type": "integer", "description": "Max results (default 50)"},
             },
         },
     ),
     Tool(
         name="buildly_get_tasks",
-        description="Fetch prioritized features, issues, and punchlist items for a product.",
+        description="Fetch backlog items for a product, organized by type (features, issues, tasks).",
         inputSchema={
             "type": "object",
             "properties": {
-                "access_token": {"type": "string", "description": "JWT token (optional if stored)"},
-                "product_id": {"type": "integer", "description": "Product ID (optional if BUILDLY_PRODUCT_UUID is set)"},
-                "product_uuid": {"type": "string", "description": "Product UUID (optional if BUILDLY_PRODUCT_UUID is set)"},
-                "task_types": {
-                    "type": "array",
-                    "items": {"type": "string", "enum": ["feature", "issue", "punchlist"]},
-                    "description": "Optional filter for task types",
-                },
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
+                "product_id": {"type": "string", "description": "Product id (optional if BUILDLY_PRODUCT_UUID set)"},
             },
         },
     ),
     Tool(
         name="buildly_get_current_work_context",
         description=(
-            "Get a combined snapshot of current work: active issues, current sprint/milestone, "
-            "and product context. Use this at the start of a session to orient the AI."
+            "Combined snapshot of current work: in-progress backlog items and milestones "
+            "for a product. Use at session start to orient the AI."
         ),
         inputSchema={
             "type": "object",
             "properties": {
-                "access_token": {"type": "string", "description": "JWT token (optional if stored)"},
-                "product_uuid": {"type": "string", "description": "Product UUID (uses env BUILDLY_PRODUCT_UUID if omitted)"},
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
+                "product_id": {"type": "string", "description": "Product id (uses env BUILDLY_PRODUCT_UUID if omitted)"},
             },
         },
     ),
     Tool(
         name="buildly_update_issue_status",
-        description="Update the status of a Buildly Labs issue.",
+        description="Update the status of a Buildly Labs backlog issue.",
         inputSchema={
             "type": "object",
             "properties": {
-                "issue_id": {"type": "string", "description": "Issue ID to update"},
-                "status": {
-                    "type": "string",
-                    "description": "New status (e.g. 'in_progress', 'done', 'blocked')",
-                },
-                "access_token": {"type": "string", "description": "JWT token (optional if stored)"},
+                "issue_uuid": {"type": "string", "description": "Issue UUID to update"},
+                "status": {"type": "string", "description": "New status (e.g. 'in_progress', 'done')"},
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
             },
-            "required": ["issue_id", "status"],
+            "required": ["issue_uuid", "status"],
         },
     ),
 ]
@@ -265,114 +197,96 @@ TOOL_NAMES: set[str] = {t.name for t in TOOLS}
 # Implementations
 # ---------------------------------------------------------------------------
 
+def _api(base: str) -> str:
+    """Return the /api/v1 root, tolerating base URLs with or without it."""
+    base = base.rstrip("/")
+    if base.endswith("/api/v1"):
+        return base
+    if base.endswith("/api"):
+        return base + "/v1"
+    return base + "/api/v1"
+
+
+def _product_filter(arguments: dict, settings: "BuildlySettings") -> dict:
+    pid = arguments.get("product_id") or settings.buildly_product_uuid
+    return {"product_id": pid} if pid else {}
+
+
 async def handle(name: str, arguments: dict, settings: "BuildlySettings") -> dict:
     """Route Buildly Labs tool calls."""
-    base = settings.labs_base_url.rstrip("/")
+    base = settings.labs_base_url
+    api = _api(base)
 
     if name == "buildly_test_connection":
-        return await _test_connection(base)
+        return await _test_connection(base.rstrip("/"))
 
     if name == "buildly_login":
-        return await _login(base, arguments["username"], arguments["password"])
+        return _save_token(arguments["api_token"])
 
     token = _get_token(settings, arguments)
-    if token is None and name != "buildly_test_connection":
-        return {
-            "error": "Not authenticated. Run buildly_login first or set LABS_API_TOKEN.",
-        }
+    if token is None:
+        return {"error": "No API token. Run buildly_login with a token from "
+                         "labs.buildly.io/settings/api-keys, or set LABS_API_TOKEN."}
 
     if name == "buildly_get_products":
-        return await _get(f"{base}/products", token, {
+        return await _get(f"{api}/products", token, {
             "limit": arguments.get("limit", 50),
             "offset": arguments.get("offset", 0),
         })
 
     if name == "buildly_get_issues":
-        params: dict = {
-            "limit": arguments.get("limit", 50),
-            "offset": arguments.get("offset", 0),
-        }
-        product_uuid = arguments.get("product_uuid") or settings.buildly_product_uuid
-        if product_uuid:
-            params["product_uuid"] = product_uuid
+        params = {"limit": arguments.get("limit", 50), "offset": arguments.get("offset", 0)}
+        params.update(_product_filter(arguments, settings))
         if arguments.get("status"):
             params["status"] = arguments["status"]
-        return await _get(f"{base}/issues", token, params)
+        return await _get(f"{api}/backlog", token, params)
 
     if name == "buildly_get_features":
-        product_uuid = arguments.get("product_uuid") or settings.buildly_product_uuid
         params = {"limit": arguments.get("limit", 50)}
-        if product_uuid:
-            params["product_uuid"] = product_uuid
-        return await _get(f"{base}/features", token, params)
+        params.update(_product_filter(arguments, settings))
+        result = await _get(f"{api}/backlog", token, params)
+        if "error" in result:
+            return result
+        items = [i for i in _extract_items(result.get("data"))
+                 if str(i.get("type", i.get("item_type", ""))).lower() in ("feature", "epic")]
+        return {"status": "ok", "count": len(items), "features": items}
 
     if name == "buildly_get_tasks":
-        product_id, product, resolution_error = await _resolve_product_context(base, token, arguments, settings)
-        if resolution_error:
-            return {"error": resolution_error}
-
-        if product_id is None:
-            return {"error": "Unable to resolve a product for buildly_get_tasks."}
-
-        params: dict[str, Any] = {}
-        task_types = arguments.get("task_types")
-        if task_types:
-            params["types"] = ",".join(task_types)
-
-        tasks_result = await _get(f"{base}/products/{product_id}/tasks", token, params)
-        if "error" in tasks_result:
-            return tasks_result
-
-        tasks = _extract_items(tasks_result.get("data"))
-        organized: dict[str, list[dict[str, Any]]] = {
-            "features": [],
-            "issues": [],
-            "punchlist": [],
-        }
-
-        for task in tasks:
-            task_type = str(task.get("type", task.get("task_type", ""))).lower()
-            if task_type == "feature":
-                organized["features"].append(task)
-            elif task_type in {"issue", "bug"}:
-                organized["issues"].append(task)
-            elif task_type in {"punchlist", "task"}:
-                organized["punchlist"].append(task)
-
-        for category in organized.values():
-            category.sort(key=_priority_sort_key)
-
-        return {
-            "status": "ok",
-            "product_id": product_id,
-            "product_name": product.get("name") if product else None,
-            "product_uuid": (product.get("uuid") or product.get("product_uuid")) if product else (arguments.get("product_uuid") or settings.buildly_product_uuid),
-            "total": len(tasks),
-            "tasks": organized,
-        }
+        params = _product_filter(arguments, settings)
+        result = await _get(f"{api}/backlog", token, params | {"limit": 200})
+        if "error" in result:
+            return result
+        items = _extract_items(result.get("data"))
+        organized: dict[str, list] = {"features": [], "issues": [], "tasks": []}
+        for it in items:
+            t = str(it.get("type", it.get("item_type", ""))).lower()
+            if t in ("feature", "epic"):
+                organized["features"].append(it)
+            elif t in ("issue", "bug"):
+                organized["issues"].append(it)
+            else:
+                organized["tasks"].append(it)
+        return {"status": "ok", "total": len(items), "tasks": organized,
+                "product_id": arguments.get("product_id") or settings.buildly_product_uuid}
 
     if name == "buildly_get_current_work_context":
-        product_uuid = arguments.get("product_uuid") or settings.buildly_product_uuid
-        params: dict = {"status": "in_progress", "limit": 20}
-        if product_uuid:
-            params["product_uuid"] = product_uuid
-        issues = await _get(f"{base}/issues", token, params)
-        milestones = await _get(f"{base}/milestones", token, {"product_uuid": product_uuid} if product_uuid else {})
+        params = _product_filter(arguments, settings)
+        issues = await _get(f"{api}/backlog", token, params | {"status": "in_progress", "limit": 20})
+        milestones = await _get(f"{api}/milestones", token, params)
         return {
             "status": "ok",
             "env_name": settings.buildly_env_name,
-            "product_uuid": product_uuid,
+            "product_id": arguments.get("product_id") or settings.buildly_product_uuid,
             "org_uuid": settings.buildly_org_uuid,
             "active_issues": issues.get("data", issues.get("error")),
             "milestones": milestones.get("data", milestones.get("error")),
         }
 
     if name == "buildly_update_issue_status":
-        issue_id = arguments["issue_id"]
-        return await _post(
-            f"{base}/issues/{issue_id}",
-            {"status": arguments["status"]},
-            token,
+        uuid = arguments["issue_uuid"]
+        return await _send(
+            f"{base.rstrip('/')}/backlog/issue/{uuid}/status",
+            "PATCH", token, {"status": arguments["status"]},
         )
 
     return {"error": f"Unknown labs tool: {name}"}
@@ -387,18 +301,11 @@ async def _test_connection(base: str) -> dict:
         return {"status": "unreachable", "error": str(exc), "url": base}
 
 
-async def _login(base: str, username: str, password: str) -> dict:
-    result = await _post(f"{base}/auth/jwt/create/", {"username": username, "password": password})
-    if "error" in result:
-        return result
-    data = result.get("data", {})
-    token = data.get("access") or data.get("token")
-    if token:
-        _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _TOKEN_FILE.write_text(token, encoding="utf-8")
-        return {
-            "status": "ok",
-            "message": "Logged in. Token saved to ~/.buildly/token",
-            "token_preview": token[:12] + "...",
-        }
-    return {"error": "Login response did not contain a token", "response": data}
+def _save_token(token: str) -> dict:
+    _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _TOKEN_FILE.write_text(token.strip(), encoding="utf-8")
+    return {
+        "status": "ok",
+        "message": "API token saved to ~/.buildly/token",
+        "token_preview": token[:8] + "...",
+    }

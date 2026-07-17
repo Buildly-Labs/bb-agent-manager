@@ -12,7 +12,7 @@ class BuildlySettings(BaseModel):
     """Runtime configuration for Buildly MCP Server."""
 
     # Buildly Labs
-    labs_base_url: str = os.getenv("LABS_BASE_URL", "https://labs-api.buildly.io")
+    labs_base_url: str = os.getenv("LABS_BASE_URL", "https://labs.buildly.io")
     labs_api_token: str = os.getenv("LABS_API_TOKEN", "")
 
     # Buildly project context
