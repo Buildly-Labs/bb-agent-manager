@@ -32,6 +32,7 @@ _DEFAULT_DOD = [
     "DevDocs updated (devdocs_write called)",
     "No debug/temp code left in",
     "Buildly Labs issue status updated",
+    "Resolved item assigned to a release/build (buildly_assign_release)",
     "PR created as draft for human review",
     "No secrets or credentials committed",
 ]
