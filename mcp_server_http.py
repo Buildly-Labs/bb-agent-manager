@@ -22,7 +22,7 @@ import sys
 
 import uvicorn
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 
 from mcp.server.sse import SseServerTransport
@@ -43,6 +43,9 @@ sse = SseServerTransport("/messages/")
 async def handle_sse(request):
     async with sse.connect_sse(request.scope, request.receive, request._send) as (r, w):
         await server.run(r, w, server.create_initialization_options())
+    # Starlette calls the endpoint's return value as a response after the
+    # stream closes; returning None raises "'NoneType' object is not callable".
+    return Response()
 
 
 async def health(request):
