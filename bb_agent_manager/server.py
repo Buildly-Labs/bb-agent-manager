@@ -21,6 +21,7 @@ from mcp.types import Resource, TextContent, Tool
 from bb_agent_manager.config import BuildlySettings
 import bb_agent_manager.tools.devdocs as devdocs_tools
 import bb_agent_manager.tools.buildly_labs as labs_tools
+import bb_agent_manager.tools.buildly_releases as releases_tools
 import bb_agent_manager.tools.buildly_workflow as workflow_tools
 import bb_agent_manager.tools.buildly_env as env_tools
 import bb_agent_manager.tools.memory_tools as memory_tools
@@ -40,6 +41,7 @@ server = Server("buildly-mcp")
 ALL_TOOLS: list[Tool] = (
     devdocs_tools.TOOLS
     + labs_tools.TOOLS
+    + releases_tools.TOOLS
     + workflow_tools.TOOLS
     + env_tools.TOOLS
     + memory_tools.TOOLS
@@ -48,6 +50,7 @@ ALL_TOOLS: list[Tool] = (
 _TOOL_ROUTERS = {
     **{n: devdocs_tools.handle for n in devdocs_tools.TOOL_NAMES},
     **{n: labs_tools.handle for n in labs_tools.TOOL_NAMES},
+    **{n: releases_tools.handle for n in releases_tools.TOOL_NAMES},
     **{n: workflow_tools.handle for n in workflow_tools.TOOL_NAMES},
     **{n: env_tools.handle for n in env_tools.TOOL_NAMES},
     **{n: memory_tools.handle for n in memory_tools.TOOL_NAMES},
