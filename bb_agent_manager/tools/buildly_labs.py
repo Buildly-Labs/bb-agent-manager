@@ -207,6 +207,53 @@ TOOLS: list[Tool] = [
             "required": ["issue_uuid", "status"],
         },
     ),
+    # --- create tools (experimental) ---------------------------------------
+    # Write to the /api/v1 backlog + products endpoints. Marked experimental
+    # until verified against a live Labs instance; payload fields follow the
+    # read tools' item shapes.
+    Tool(
+        name="buildly_create_issue",
+        description="Create a backlog issue in Buildly Labs for a product. (experimental)",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "Product id (uses env BUILDLY_PRODUCT_UUID if omitted)"},
+                "name": {"type": "string", "description": "Issue title/summary"},
+                "description": {"type": "string", "description": "Issue description"},
+                "status": {"type": "string", "description": "Initial status (default 'backlog')"},
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
+            },
+            "required": ["name"],
+        },
+    ),
+    Tool(
+        name="buildly_create_task",
+        description="Create a task under a Buildly Labs backlog issue/feature. (experimental)",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "Product id (uses env BUILDLY_PRODUCT_UUID if omitted)"},
+                "name": {"type": "string", "description": "Task title"},
+                "description": {"type": "string", "description": "Task description"},
+                "parent_uuid": {"type": "string", "description": "Parent issue/feature UUID, if any"},
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
+            },
+            "required": ["name"],
+        },
+    ),
+    Tool(
+        name="buildly_create_product",
+        description="Create a product in your Buildly Labs organization. (experimental)",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Product name"},
+                "description": {"type": "string", "description": "Product description"},
+                "access_token": {"type": "string", "description": "API token (optional if stored)"},
+            },
+            "required": ["name"],
+        },
+    ),
 ]
 
 TOOL_NAMES: set[str] = {t.name for t in TOOLS}
@@ -317,6 +364,40 @@ async def handle(name: str, arguments: dict, settings: "BuildlySettings") -> dic
             f"{base.rstrip('/')}/backlog/issue/{uuid}/status",
             "PATCH", token, {"status": arguments["status"]},
         )
+
+    if name == "buildly_create_issue":
+        product_id = arguments.get("product_id") or settings.buildly_product_uuid
+        if not product_id:
+            return {"error": "product_id is required (or set BUILDLY_PRODUCT_UUID)."}
+        payload = {
+            "type": "issue",
+            "name": arguments["name"],
+            "description": arguments.get("description", ""),
+            "status": arguments.get("status", "backlog"),
+            "product_id": product_id,
+        }
+        return await _send(f"{api}/backlog", "POST", token, payload)
+
+    if name == "buildly_create_task":
+        product_id = arguments.get("product_id") or settings.buildly_product_uuid
+        if not product_id:
+            return {"error": "product_id is required (or set BUILDLY_PRODUCT_UUID)."}
+        payload = {
+            "type": "task",
+            "name": arguments["name"],
+            "description": arguments.get("description", ""),
+            "product_id": product_id,
+        }
+        if arguments.get("parent_uuid"):
+            payload["parent_uuid"] = arguments["parent_uuid"]
+        return await _send(f"{api}/backlog", "POST", token, payload)
+
+    if name == "buildly_create_product":
+        payload = {
+            "name": arguments["name"],
+            "description": arguments.get("description", ""),
+        }
+        return await _send(f"{api}/products", "POST", token, payload)
 
     return {"error": f"Unknown labs tool: {name}"}
 
